@@ -2,6 +2,13 @@
 
 ### Coins
 
+Modify `Coins.c` to support half dollars, coins worth 50 cents.
+
+* Add a new member to the struct
+* Output "penny" if only one is needed. Use a `const char *` variable and conditional to do this.
+* Test various inputs to ensure your logic is correct.
+
+
 ### Queue
 
 Your task is to modify the code in queue.h and queue.c to fully implement the following functions.

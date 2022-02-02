@@ -2,3 +2,5 @@
 *.0
 qtest
 driver.py
+.gdb*
+submission.tar
