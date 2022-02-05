@@ -20,3 +20,8 @@ Your task is to modify the code in queue.h and queue.c to fully implement the fo
 * `q_remove_head`: Attempt to remove the element at the head of the queue.
 * `q_size`: Compute the number of elements in the queue.
 * `q_reverse`: Reorder the list so that the queue elements are reversed in order.
+
+
+### Prelude
+
+
