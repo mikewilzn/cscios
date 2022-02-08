@@ -1,6 +1,7 @@
 .autolab*
-*.0
+*.o
 qtest
 driver.py
 .gdb*
 submission.tar
+Shell
