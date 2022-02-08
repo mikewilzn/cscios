@@ -1,6 +1,6 @@
 # CSCI 380: Operating Systems
 
-### Coins
+## Coins
 
 Modify `Coins.c` to support half dollars, coins worth 50 cents.
 
@@ -9,7 +9,7 @@ Modify `Coins.c` to support half dollars, coins worth 50 cents.
 * Test various inputs to ensure your logic is correct.
 
 
-### Queue
+## Queue
 
 Your task is to modify the code in queue.h and queue.c to fully implement the following functions.
 
@@ -22,6 +22,17 @@ Your task is to modify the code in queue.h and queue.c to fully implement the fo
 * `q_reverse`: Reorder the list so that the queue elements are reversed in order.
 
 
-### Prelude
+## Prelude
 
+* Create a character array of size 80 for the string buffer. Declare the array size as a CONSTANT.
+* Use `fork` to create a new process. See the `fork` example and the `man` page (i.e., `man 2 fork`).
+* Read the string ensuring you do NOT allow a buffer overflow. Investigate `fgets`, `strtok`, and `strcspn`.
+* Use `getpid` to obtain a PID. You may also find `getppid` helpful. Consult the man pages.
+* Include header file `<unistd.h>`.
 
+#### Output Format
+```
+shell> Hi there!
+Parent says: PID = 1547, child PID = 1548, parent PID = 1237
+Child says:  PID = 1548, parent PID = 1547, 'Hi there!'
+```
