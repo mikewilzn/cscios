@@ -19,7 +19,7 @@ main ()
 	fgets(buff, sizeof(buff), stdin);
 	buff[strcspn(buff, "\n")] = 0;
 
-	__pid_t pid = fork();
+	pid_t pid = fork();
 
   	if (pid < 0)
   	{
