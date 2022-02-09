@@ -7,10 +7,11 @@
 #include <unistd.h>
 #include <errno.h>
 
-int main ()
-{
-	const int BUFFER_SIZE = 80;
+const int BUFFER_SIZE = 80;
 
+int
+main ()
+{
 	char buff[BUFFER_SIZE];
 
 	printf ("shell> ");
