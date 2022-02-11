@@ -22,7 +22,6 @@ main ()
 	buff[strcspn(buff, "\n")] = 0;
 	
 	char* args[MAX_ARGS];
-	args[MAX_ARGS - 1] = NULL;
 
 	const char* delimiters = " \t \n";
 	char* token = strtok(buff, delimiters);
@@ -35,7 +34,8 @@ main ()
 		token = strtok(NULL, delimiters);
 		++i;
 	}
-
+	args[i] = NULL;
+	
 	pid_t pid = fork();
 
   	if (pid < 0)
@@ -46,10 +46,7 @@ main ()
   	}
 	if (pid == 0)
   	{
-		/* Since this is the child process, the ppid is going to be the same as the pid of the parent */
-    	/*
-	 * printf("Child says:  PID = %d, parent PID = %d, '%s'\n", getpid(), getppid(), buff);
-	*/
+		printf ("[ %s ] (PID: %d)\n", args[0], pid);
 		int ret = execvp (args[0], args);
 		if (ret < 0)
 		{
@@ -58,12 +55,8 @@ main ()
 		}
 	       	exit(0);
  	}
-	/* 
-	 * Since this is the parent process, the ppid will be the same as the pid of the process
-	 * that called this whole program. In this case that is the currently running instance of
-	 * bash that was used to execute this program.
-	 */
-	printf("Parent says: PID = %d, child PID = %d, parent PID = %d\n", getpid(), pid, getppid());
+	printf ("[* %s *] (Exit: %d)", args[0], waitpid(pid, &status));
+	
 
 	return 0;
 }
