@@ -55,8 +55,12 @@ main ()
 		}
 	       	exit(0);
  	}
-	printf ("[* %s *] (Exit: %d)", args[0], waitpid(pid, &status));
-	
+	int status;
+	waitpid(pid, &status, 0);
+	if (WIFEXITED(status))
+	{
+		printf ("[* %s *] (Exit: %d)\n", args[0], WEXITSTATUS(status));
+	}	
 
 	return 0;
 }
