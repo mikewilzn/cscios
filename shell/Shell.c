@@ -14,27 +14,27 @@ const int MAX_ARGS = 5;
 int
 main ()
 {
+	/* Initialize input buffer */
 	char buff[BUFFER_SIZE];
 
 	printf ("shell> ");
 
+	/* Ingest input from stdin up to BUFFER_SIZE characters */
 	fgets(buff, sizeof(buff), stdin);
-	buff[strcspn(buff, "\n")] = 0;
+	buff[strcspn(buff, "\n")] = 0; // Gets rid of stdin newline character
 	
+	/* Tokenize input arguments */
 	char* args[MAX_ARGS];
-
-	const char* delimiters = " \t \n";
+	const char* delimiters = "\t \n";
 	char* token = strtok(buff, delimiters);
-
-
 	int i = 0;
-	while (token && i < MAX_ARGS - 1)
+	while (token && i < MAX_ARGS)
 	{
 		args[i] = token;
 		token = strtok(NULL, delimiters);
 		++i;
 	}
-	args[i] = NULL;
+	args[i] = NULL; // i will be one element past the last input argument
 	
 	pid_t pid = fork();
 
@@ -44,6 +44,7 @@ main ()
 	    	strerror (errno));
     	exit (-1);
   	}
+	/* Child process */
 	if (pid == 0)
   	{
 		printf ("[ %s ] (PID: %d)\n", args[0], pid);
@@ -55,8 +56,10 @@ main ()
 		}
 	       	exit(0);
  	}
+	/* Parent process */
 	int status;
-	if (waitpid(pid, &status, 0) < 0)
+	pid_t wpid = waitpid(pid, &status, 0);
+	if (wpid < 0)
 	{
 		printf ("waitpid error");
 	}
