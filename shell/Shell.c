@@ -47,7 +47,7 @@ main ()
 	/* Child process */
 	if (pid == 0)
   	{
-		printf ("[ %s ] (PID: %d)\n", args[0], pid);
+		printf ("[ %s ] (PID: %d)\n", args[0], getpid());
 		int ret = execvp (args[0], args);
 		if (ret < 0)
 		{
