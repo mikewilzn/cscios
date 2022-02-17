@@ -59,13 +59,13 @@ main ()
 	/* Parent process */
 	int status;
 	pid_t wpid = waitpid(pid, &status, 0);
-	if (wpid < 0)
-	{
-		printf ("waitpid error");
-	}
-	else if (WIFEXITED(status))
+	if (WIFEXITED(status))
 	{
 		printf ("[* %s *] (Exit: %d)\n", args[0], WEXITSTATUS(status));
+	}
+	else
+	{
+		printf ("Child %d terminated abnormally\n", wpid);
 	}
 
 	return 0;
