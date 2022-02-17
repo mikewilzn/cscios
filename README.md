@@ -36,3 +36,24 @@ shell> Hi there!
 Parent says: PID = 1547, child PID = 1548, parent PID = 1237
 Child says:  PID = 1548, parent PID = 1547, 'Hi there!'
 ```
+
+## Prelude 2
+
+Write a simple shell that reads ONE command, forks a process to execute the command, and waits for the command to complete before printing its exit status.
+
+* Print a prompt and read a command string from the user, which MAY include spaces.
+* Tokenize the string, creating an `args` array. You may assume the string is not empty. Use space, tab, and newline characters as delimiters.
+* Fork a process, ensuring you detect and print errors. Use `strerror` as you did before.
+* In the child process, execute the command using `execvp`. (A variant of `execve` that omits the environment and searches in your path for the executable.)
+* In the parent process wait for the child to terminate using `waitpid` (i.e., reap the child). Print the exit status with `WEXITSTATUS`.
+
+#### Output Format
+```
+shell> ls -a
+[ ls ] (PID: 3052378)
+.             Descr.c                       MallocLab
+..            Dest.txt                      Midterm.txt
+a             Dir                           Notes
+...
+[* ls *] (Exit: 0)
+```
