@@ -9,8 +9,9 @@
 CC      = gcc
 
 # C compiler flags
-CFLAGS = -g -Wall -Wextra -Werror 
+#CFLAGS = -g -Wall -Wextra -Werror 
 #CFLAGS = -O3 -Wall -Wextra -Werror 
+CFLAGS = -Wall
 
 # Linker flags
 LDFLAGS  := 
