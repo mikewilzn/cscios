@@ -110,8 +110,8 @@ main (int argc, char** argv)
 
   while (1)
   {
-	  printf (prompt);
-	  char cmdline[MAXLINE];
+	 printf (prompt);
+	 char cmdline[MAXLINE];
 	 fgets (cmdline, sizeof(cmdline), stdin); 
 	 parseline (cmdline, argv);
   }
@@ -184,6 +184,12 @@ parseline (const char* cmdline, char** argv)
     argv[--argc] = NULL;
   }
   return bg;
+}
+
+void
+evaluate (char* command)
+{
+
 }
 
 /*
