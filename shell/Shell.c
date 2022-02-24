@@ -30,7 +30,7 @@ main ()
 		exit (1);
 	}
 
-	while (true)
+	while (1)
 	{
 		/* Initialize input buffer */
 		char buff[BUFFER_SIZE];
@@ -38,7 +38,11 @@ main ()
 
 		/* Ingest input from stdin up to BUFFER_SIZE characters */
 		fgets(buff, sizeof(buff), stdin);
-		buff[strcspn(buff, "\n")] = 0; // Gets rid of stdin newline character
+
+		if(feof(stdin))
+			break;
+
+		evaluate(buff);
 	}	
 	return 0;
 }
@@ -46,49 +50,74 @@ main ()
 void
 evaluate (char* command)
 {
+	char* args[MAX_ARGS];
+	tokenize(args, command);
+
+	/* Handle whitespace input */
+	if(args[0] == NULL)
+		return;
+
+	/* Exit when user types 'exit' */
+	if(strcmp(args[0], "exit") == 0)
+		exit(0);
+
 	pid_t pid = fork();
   	if (pid < 0)
   	{
-    	fprintf (stderr, "fork error (%s) -- exiting\n",
-	    	strerror (errno));
-    	exit (-1);
+		fprintf (stderr, "fork error (%s) -- exiting\n",
+			strerror (errno));
+		exit (-1);
   	}
 	/* Child process */
 	if (pid == 0)
   	{
-		printf ("[ %s ] (PID: %d)\n", args[0], getpid());
+		printf ("[ PID: %d ]\n", getpid());
 		int ret = execvp (args[0], args);
 		if (ret < 0)
 		{
 			fprintf (stderr, "exec error (%s) -- exiting\n", strerror (errno));
 			exit(1);
 		}
-		exit(0);
  	}
-	int status;
-	pid_t wpid = waitpid(pid, &status, 0);
-	if (WIFEXITED(status))
-	{
-		printf ("[* %s *] (Exit: %d)\n", args[0], WEXITSTATUS(status));
-	}
-	else
-	{
-		printf ("Child %d terminated abnormally\n", wpid);
-	}
+
+	int delay = 2;
+	while ((delay = sleep(2)) > 0);
 }
 
 void
 tokenize (char* args[], char* command)
 {	
-	char* args[MAX_ARGS];
 	const char* delimiters = "\t \n";
-	char* token = strtok(buff, delimiters);
+	char* token = strtok(command, delimiters);
 	int i = 0;
-	while (token && i < MAX_ARGS)
+	while (token && i < MAX_ARGS - 1)
 	{
 		args[i] = token;
 		token = strtok(NULL, delimiters);
 		++i;
 	}
 	args[i] = NULL; // i will be one element past the last input argument
+}
+
+void
+handler (int signal)
+{
+	int tempErrNo = errno;
+
+	int status;
+	pid_t wpid;
+
+	while ((wpid = waitpid(-1, &status, WNOHANG)) > 0)
+	{
+		if (WIFEXITED(status))
+		{
+			printf ("[ PID: %d (Exit: %d) ]\n", wpid, WEXITSTATUS(status));
+		}
+		else if (WIFSIGNALED(status))
+		{
+			printf ("[ PID: %d (Signal: %d) ]\n", wpid, WTERMSIG(status));
+		}
+	}
+
+	errno = tempErrNo;
 }
