@@ -70,6 +70,15 @@ int
 parseline (const char* cmdline, char**argv);
 
 void
+eval (char* cmdline);
+
+void
+builtin_cmd();
+
+void
+waitfg(int job);
+
+void
 sigint_handler (int sig);
 
 void
@@ -178,6 +187,48 @@ parseline (const char* cmdline, char** argv)
     argv[--argc] = NULL;
   }
   return bg;
+}
+
+/*
+ * eval - 
+ *
+ *
+ *
+ */
+void
+eval (char* cmdline)
+{
+  char* argv[MAXARGS];    // Argument list
+  char buf[MAXLINE];    // Holds modified command line
+  int bg;   // Should job run in bg or fg?
+  pid_t pid;
+
+  strcpy(buf, cmdline);
+  bg = parseline(buf, argv);
+  
+  if (!builtin_cmd(argv))
+  {
+    /* Child runs job */
+    if ((pid = Fork())) == 0)
+    {
+      if (execve(argv[0], argv, environ) < 0)
+      {
+        printf("%s: Command not found.\n", argv[0]);
+        exit(0);
+      }
+    }
+
+    if (!bg)
+    {
+      int status;
+      if (waitpid(pid, &status, WNOHANG) < 0)
+        unix_error("waitfg: waitpid error");
+    }
+    else
+      printf("%d %s", pid, cmdline);
+  }
+
+  return;
 }
 
 /*
