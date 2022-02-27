@@ -14,6 +14,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <stdbool.h>
 
 #include <errno.h>
 #include <signal.h>
@@ -72,7 +73,7 @@ parseline (const char* cmdline, char**argv);
 void
 eval (char* cmdline);
 
-void
+int
 builtin_cmd();
 
 void
@@ -117,7 +118,19 @@ main (int argc, char** argv)
   Signal (SIGCHLD, sigchld_handler); /* Terminated or stopped child */
   Signal (SIGQUIT, sigquit_handler); /* quit */
 
-  /* TODO -- shell goes here*/
+  while (true)
+  {
+    char buff[MAXLINE];
+    printf(prompt);
+    fflush(stdout);
+
+    fgets(buff, sizeof(buff), stdin);
+
+    if(feof(stdin))
+			break;
+    
+    eval(buff);
+  }
 
   /* Quit */
   exit (0);
@@ -209,7 +222,7 @@ eval (char* cmdline)
   if (!builtin_cmd(argv))
   {
     /* Child runs job */
-    if ((pid = Fork())) == 0)
+    if ((pid = fork()) == 0)
     {
       if (execve(argv[0], argv, environ) < 0)
       {
@@ -229,6 +242,12 @@ eval (char* cmdline)
   }
 
   return;
+}
+
+int
+builtin_cmd (char** argv)
+{
+  return 1;
 }
 
 /*
