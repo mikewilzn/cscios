@@ -247,7 +247,16 @@ eval (char* cmdline)
 int
 builtin_cmd (char** argv)
 {
-  return 1;
+	/* Exit shell when user types 'exit' */
+	if (strcmp(argv[0], "quit") == 0)
+		exit(0);
+	
+	if(strcmp(argv[0], "fg") == 0)
+	{
+		// TODO
+		return true;
+	}
+	return false;
 }
 
 /*
