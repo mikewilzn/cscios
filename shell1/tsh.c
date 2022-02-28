@@ -224,7 +224,7 @@ eval (char* cmdline)
     /* Child runs job */
     if ((pid = fork()) == 0)
     {
-      if (execve(argv[0], argv, environ) < 0)
+      if (execvp(argv[0], argv) < 0)
       {
         printf("%s: Command not found.\n", argv[0]);
         exit(0);
@@ -251,9 +251,16 @@ builtin_cmd (char** argv)
 	if (strcmp(argv[0], "quit") == 0)
 		exit(0);
 	
-	if(strcmp(argv[0], "fg") == 0)
+	if (strcmp(argv[0], "fg") == 0)
 	{
-		// TODO
+		if (g_suspendedPid > 0)
+		{
+			g_runningPid = g_suspendedPid;
+			g_suspendedPid = 0;
+
+			kill(-g_runningPid, SIGCONT);
+			waitfg(g_runningPid);
+		}
 		return true;
 	}
 	return false;
