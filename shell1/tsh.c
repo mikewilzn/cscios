@@ -242,6 +242,7 @@ eval (char* cmdline)
         printf("%s: Command not found.\n", argv[0]);
         exit(0);
       }
+      waitfg(g_runningPid);
     }
 
     if (!bg)
@@ -252,8 +253,10 @@ eval (char* cmdline)
       waitfg(g_runningPid);
     }
     else
+    {
       printf("%d %s", g_runningPid, cmdline);
       fflush(stdout);
+    }
   }
 
   return;
@@ -317,6 +320,7 @@ sigchld_handler (int sig)
 		{
 			printf ("Job (%d) stopped by signal %d\n", wpid, WTERMSIG(status));
 		}
+		g_runningPid = 0;
   }
 
   errno = olderrno;
@@ -359,6 +363,7 @@ sigtstp_handler (int sig)
     kill(-g_runningPid, SIGTSTP);
 
     printf ("Job (%d) stopped by signal %d\n", g_runningPid, sig);
+    g_suspendedPid = g_runningPid;
     g_runningPid = 0;
 
     errno = olderrno;
