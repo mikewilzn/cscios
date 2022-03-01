@@ -16,11 +16,14 @@
 #include <ctype.h>
 #include <stdbool.h>
 
+
 #include <errno.h>
 #include <signal.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
+
+#include <csapp.h> // For Safe I/O functions
 
 /*
  *******************************************************************************
@@ -96,6 +99,9 @@ unix_error (char* msg);
 
 void
 app_error (char* msg);
+
+void
+signal_print (pid_t pid, int sig);
 
 handler_t*
 Signal (int signum, handler_t* handler);
@@ -266,6 +272,11 @@ builtin_cmd (char** argv)
 	return false;
 }
 
+void
+waitfg (pid_t pid)
+{
+}
+
 /*
  *******************************************************************************
  * SIGNAL HANDLERS
@@ -293,7 +304,8 @@ sigchld_handler (int sig)
 void
 sigint_handler (int sig)
 {
-  return;
+	kill(-g_runningPid, SIGINT);
+  	return;
 }
 
 /*
@@ -304,7 +316,15 @@ sigint_handler (int sig)
 void
 sigtstp_handler (int sig)
 {
-  return;
+	int olderrno = errno;
+
+	kill(-g_runningPid, SIGTSTP);
+
+	signal_print(g_runningPid, sig);
+
+	errno = olderrno;
+
+	return;
 }
 
 /*
@@ -349,6 +369,16 @@ Signal (int signum, handler_t* handler)
   if (sigaction (signum, &action, &old_action) < 0)
     unix_error ("Signal error");
   return (old_action.sa_handler);
+}
+
+void
+sig_print (pid_t pid, int sig)
+{
+	Sio_puts("Job (");
+	Sio_putl(long(pid));
+	Sio_puts(") stopped by signal ");
+	Sio_putl(long(sig));
+	Sio_puts("\n");
 }
 
 /*
