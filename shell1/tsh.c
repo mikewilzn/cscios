@@ -253,6 +253,7 @@ eval (char* cmdline)
     }
     else
       printf("%d %s", g_runningPid, cmdline);
+      fflush(stdout);
   }
 
   return;
