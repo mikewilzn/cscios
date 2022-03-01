@@ -23,8 +23,6 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-#include <csapp.h> // For Safe I/O functions
-
 /*
  *******************************************************************************
  * TYPE DEFINITIONS
@@ -64,19 +62,20 @@ volatile pid_t g_runningPid = 0;
 // PID of the suspended job's leader, or 0 if there is no suspended job
 volatile pid_t g_suspendedPid = 0; 
 
+sigset_t mask, prev;
 /*
  *******************************************************************************
  * FUNCTION PROTOTYPES
  *******************************************************************************
  */
 
-int
+bool
 parseline (const char* cmdline, char**argv);
 
 void
 eval (char* cmdline);
 
-int
+bool
 builtin_cmd();
 
 void
@@ -100,8 +99,8 @@ unix_error (char* msg);
 void
 app_error (char* msg);
 
-void
-signal_print (pid_t pid, int sig);
+/* void
+signal_print (pid_t pid, int sig); */
 
 handler_t*
 Signal (int signum, handler_t* handler);
@@ -124,6 +123,10 @@ main (int argc, char** argv)
   Signal (SIGCHLD, sigchld_handler); /* Terminated or stopped child */
   Signal (SIGQUIT, sigquit_handler); /* quit */
 
+  sigemptyset (&mask);
+  sigaddset (&mask, SIGCHLD);
+  sigprocmask (SIG_BLOCK, &mask, &prev);
+
   while (true)
   {
     char buff[MAXLINE];
@@ -136,6 +139,8 @@ main (int argc, char** argv)
 			break;
     
     eval(buff);
+
+    fflush(stdout);
   }
 
   /* Quit */
@@ -151,14 +156,14 @@ main (int argc, char** argv)
 *  Returns true if the user has requested a BG job, false if
 *  the user has requested a FG job.
 */
-int
+bool
 parseline (const char* cmdline, char** argv)
 {
   static char array[MAXLINE]; /* holds local copy of command line*/
   char* buf = array;          /* ptr that traverses command line*/
   char* delim;                /* points to first space delimiter*/
   int argc;                   /* number of args*/
-  int bg;                     /* background job?*/
+  bool bg;                     /* background job?*/
 
   strcpy (buf, cmdline);
   buf[strlen (buf) - 1] = ' ';  /* replace trailing '\n' with space*/
@@ -198,10 +203,10 @@ parseline (const char* cmdline, char** argv)
   argv[argc] = NULL;
 
   if (argc == 0) /* ignore blank line*/
-    return 1;
+    return true;
 
   /* should the job run in the background?*/
-  if ((bg = (*argv[argc - 1] == '&')) != 0)
+  if ((bg = (*argv[argc - 1] == '&')) != false)
   {
     argv[--argc] = NULL;
   }
@@ -220,15 +225,17 @@ eval (char* cmdline)
   char* argv[MAXARGS];    // Argument list
   char buf[MAXLINE];    // Holds modified command line
   int bg;   // Should job run in bg or fg?
-  pid_t pid;
 
   strcpy(buf, cmdline);
   bg = parseline(buf, argv);
+
+  if (argv[0] == NULL)
+    return;
   
   if (!builtin_cmd(argv))
   {
     /* Child runs job */
-    if ((pid = fork()) == 0)
+    if ((g_runningPid = fork()) == 0)
     {
       if (execvp(argv[0], argv) < 0)
       {
@@ -240,17 +247,18 @@ eval (char* cmdline)
     if (!bg)
     {
       int status;
-      if (waitpid(pid, &status, WNOHANG) < 0)
+      if (waitpid(g_runningPid, &status, WNOHANG) < 0)
         unix_error("waitfg: waitpid error");
+      waitfg(g_runningPid);
     }
     else
-      printf("%d %s", pid, cmdline);
+      printf("%d %s", g_runningPid, cmdline);
   }
 
   return;
 }
 
-int
+bool
 builtin_cmd (char** argv)
 {
 	/* Exit shell when user types 'exit' */
@@ -275,6 +283,10 @@ builtin_cmd (char** argv)
 void
 waitfg (pid_t pid)
 {
+  while (pid == g_runningPid)
+  {
+    sigsuspend (&prev);
+  }
 }
 
 /*
@@ -293,6 +305,20 @@ waitfg (pid_t pid)
 void
 sigchld_handler (int sig)
 {
+  int olderrno = errno;
+
+  int status;
+  pid_t wpid;
+
+  while ((wpid = waitpid(-1, &status, WNOHANG)) > 0)
+  {
+		if (WIFSIGNALED(status))
+		{
+			printf ("Job (%d) stopped by signal %d\n", wpid, WTERMSIG(status));
+		}
+  }
+
+  errno = olderrno;
   return;
 }
 
@@ -304,8 +330,17 @@ sigchld_handler (int sig)
 void
 sigint_handler (int sig)
 {
-	kill(-g_runningPid, SIGINT);
-  	return;
+  if (g_runningPid > 0)
+  {
+    int olderrno = errno;
+
+	  kill(-g_runningPid, SIGINT);
+    printf ("Job (%d) terminated by signal %d\n", g_runningPid, sig);
+    g_runningPid = 0;
+  
+    errno = olderrno;
+  }
+  return;
 }
 
 /*
@@ -316,14 +351,17 @@ sigint_handler (int sig)
 void
 sigtstp_handler (int sig)
 {
-	int olderrno = errno;
+  if (g_runningPid > 0)
+  {
+    int olderrno = errno;
 
-	kill(-g_runningPid, SIGTSTP);
+    kill(-g_runningPid, SIGTSTP);
 
-	signal_print(g_runningPid, sig);
+    printf ("Job (%d) stopped by signal %d\n", g_runningPid, sig);
+    g_runningPid = 0;
 
-	errno = olderrno;
-
+    errno = olderrno;
+  }
 	return;
 }
 
@@ -371,7 +409,7 @@ Signal (int signum, handler_t* handler)
   return (old_action.sa_handler);
 }
 
-void
+/* void
 sig_print (pid_t pid, int sig)
 {
 	Sio_puts("Job (");
@@ -379,7 +417,7 @@ sig_print (pid_t pid, int sig)
 	Sio_puts(") stopped by signal ");
 	Sio_putl(long(sig));
 	Sio_puts("\n");
-}
+} */
 
 /*
 *  sigquit_handler - The driver program can gracefully terminate the
