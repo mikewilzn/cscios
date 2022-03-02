@@ -79,7 +79,7 @@ bool
 builtin_cmd();
 
 void
-waitfg(int job);
+waitfg();
 
 void
 sigint_handler (int sig);
@@ -132,7 +132,7 @@ main (int argc, char** argv)
     fgets(buff, sizeof(buff), stdin);
 
     if(feof(stdin))
-			break;
+	break;
     
     eval(buff);
 
@@ -244,22 +244,22 @@ eval (char* cmdline)
   	}
     if (g_runningPid == 0)
     {
-      sigprocmask(SIG_SETMASK, &prev, NULL); // Unblock SIGCHLD
       setpgid(0, 0);
+      sigprocmask(SIG_SETMASK, &prev, NULL);
 
       if (execvp(argv[0], argv) < 0)
       {
         printf("%s: Command not found.\n", argv[0]);
         exit(0);
       }
-      waitfg(g_runningPid);
+      waitfg();
     }
 
     sigprocmask(SIG_SETMASK, &prev, NULL); // Unblock SIGCHLD
 
     if (!bg)
     {
-      waitfg(g_runningPid);
+      waitfg();
     }
     else
     {
@@ -285,8 +285,9 @@ builtin_cmd (char** argv)
 			g_runningPid = g_suspendedPid;
 			g_suspendedPid = 0;
 
+			sigprocmask (SIG_SETMASK, &prev, NULL);
 			kill(-g_runningPid, SIGCONT);
-			waitfg(g_runningPid);
+			waitfg();
 		}
 		return true;
 	}
@@ -294,9 +295,9 @@ builtin_cmd (char** argv)
 }
 
 void
-waitfg (pid_t pid)
+waitfg ()
 {
-  while (pid == g_runningPid)
+  while (g_runningPid != 0)
   {
     sigsuspend (&prev);
   }
@@ -325,17 +326,16 @@ sigchld_handler (int sig)
 
   while ((wpid = waitpid(-1, &status, WNOHANG|WUNTRACED)) > 0)
   {
-		if (WIFSIGNALED(status))
-		{
-			printf ("Job (%d) terminated by signal %d\n", wpid, WTERMSIG(status));
-		}
-    else if (WIFSTOPPED(status))
-    {
-      printf ("Job (%d) stopped by signal %d\n", wpid, WSTOPSIG(status));
-      g_suspendedPid = g_runningPid;
-    }
-    
-		g_runningPid = 0;
+	if (WIFSIGNALED(status))
+	{
+		printf ("Job (%d) terminated by signal %d\n", wpid, WTERMSIG(status));
+	}
+	else if (WIFSTOPPED(status))
+	{
+		printf ("Job (%d) stopped by signal %d\n", wpid, WSTOPSIG(status));
+		g_suspendedPid = g_runningPid;
+	}
+	g_runningPid = 0;
   }
 
   errno = olderrno;
@@ -351,11 +351,7 @@ void
 sigint_handler (int sig)
 {
   if (g_runningPid > 0)
-  {
-    int olderrno = errno;
 	  kill(-g_runningPid, SIGINT);  
-    errno = olderrno;
-  }
   return;
 }
 
@@ -368,12 +364,9 @@ void
 sigtstp_handler (int sig)
 {
   if (g_runningPid > 0)
-  {
-    int olderrno = errno;
     kill(-g_runningPid, SIGTSTP);
-    errno = olderrno;
-  }
-	return;
+
+  return;
 }
 
 /*
