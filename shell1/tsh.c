@@ -123,10 +123,6 @@ main (int argc, char** argv)
   Signal (SIGCHLD, sigchld_handler); /* Terminated or stopped child */
   Signal (SIGQUIT, sigquit_handler); /* quit */
 
-  sigemptyset (&mask);
-  sigaddset (&mask, SIGCHLD);
-  sigprocmask (SIG_BLOCK, &mask, &prev);
-
   while (true)
   {
     char buff[MAXLINE];
@@ -232,11 +228,25 @@ eval (char* cmdline)
   if (argv[0] == NULL)
     return;
   
+  sigemptyset (&mask);
+  sigaddset (&mask, SIGCHLD);
+  sigprocmask (SIG_BLOCK, &mask, &prev);
+  
   if (!builtin_cmd(argv))
   {
     /* Child runs job */
-    if ((g_runningPid = fork()) == 0)
+    g_runningPid = fork();
+    if (g_runningPid < 0)
+  	{
+      fprintf (stderr, "fork error (%s) -- exiting\n",
+        strerror (errno));
+      exit (-1);
+  	}
+    if (g_runningPid == 0)
     {
+      sigprocmask(SIG_SETMASK, &prev, NULL); // Unblock SIGCHLD
+      setpgid(0, 0);
+
       if (execvp(argv[0], argv) < 0)
       {
         printf("%s: Command not found.\n", argv[0]);
@@ -245,11 +255,10 @@ eval (char* cmdline)
       waitfg(g_runningPid);
     }
 
+    sigprocmask(SIG_SETMASK, &prev, NULL); // Unblock SIGCHLD
+
     if (!bg)
     {
-      int status;
-      if (waitpid(g_runningPid, &status, WNOHANG) < 0)
-        unix_error("waitfg: waitpid error");
       waitfg(g_runningPid);
     }
     else
@@ -314,12 +323,18 @@ sigchld_handler (int sig)
   int status;
   pid_t wpid;
 
-  while ((wpid = waitpid(-1, &status, WNOHANG)) > 0)
+  while ((wpid = waitpid(-1, &status, WNOHANG|WUNTRACED)) > 0)
   {
 		if (WIFSIGNALED(status))
 		{
-			printf ("Job (%d) stopped by signal %d\n", wpid, WTERMSIG(status));
+			printf ("Job (%d) terminated by signal %d\n", wpid, WTERMSIG(status));
 		}
+    else if (WIFSTOPPED(status))
+    {
+      printf ("Job (%d) stopped by signal %d\n", wpid, WSTOPSIG(status));
+      g_suspendedPid = g_runningPid;
+    }
+    
 		g_runningPid = 0;
   }
 
@@ -338,11 +353,7 @@ sigint_handler (int sig)
   if (g_runningPid > 0)
   {
     int olderrno = errno;
-
-	  kill(-g_runningPid, SIGINT);
-    printf ("Job (%d) terminated by signal %d\n", g_runningPid, sig);
-    g_runningPid = 0;
-  
+	  kill(-g_runningPid, SIGINT);  
     errno = olderrno;
   }
   return;
@@ -359,13 +370,7 @@ sigtstp_handler (int sig)
   if (g_runningPid > 0)
   {
     int olderrno = errno;
-
     kill(-g_runningPid, SIGTSTP);
-
-    printf ("Job (%d) stopped by signal %d\n", g_runningPid, sig);
-    g_suspendedPid = g_runningPid;
-    g_runningPid = 0;
-
     errno = olderrno;
   }
 	return;
