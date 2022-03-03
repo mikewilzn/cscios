@@ -1,7 +1,19 @@
 /*
  * tsh - A tiny shell program
  *
- * DISCUSS YOUR IMPLEMENTATION HERE!
+ * I tried to keep the SIGINT and SIGTSTP handlers as simple as possible and let
+ * SIGCHLD handler handle the print statements. Both of the former handlers just
+ * call kill using the "-n" option which automatically sends the respective signal
+ * to all processes in the process group (with g_runningPid being the leader).
+ *
+ * SIGCHLD calls waitpid with the "-1" option which waits for every child process.
+ * I also passed the WNOHANG because otherwise any suspended process would cause
+ * the shell to hang. I passed WUNTRACED because without it my shell was hanging
+ * and looking at the man page I suspected some child processes were not being
+ * traced.
+ *
+ * waitfg waits for a foreground process using sigsuspend while the runningPid
+ * isn't zero. Because once it's complete it will be set to zero.
  */
 
 /*
@@ -99,9 +111,6 @@ unix_error (char* msg);
 void
 app_error (char* msg);
 
-/* void
-signal_print (pid_t pid, int sig); */
-
 handler_t*
 Signal (int signum, handler_t* handler);
 
@@ -114,170 +123,187 @@ Signal (int signum, handler_t* handler);
 int
 main (int argc, char** argv)
 {
-  /* Redirect stderr to stdout */
-  dup2 (1, 2);
+	/* Redirect stderr to stdout */
+	dup2 (1, 2);
 
-  /* Install signal handlers */
-  Signal (SIGINT, sigint_handler);   /* ctrl-c */
-  Signal (SIGTSTP, sigtstp_handler); /* ctrl-z */
-  Signal (SIGCHLD, sigchld_handler); /* Terminated or stopped child */
-  Signal (SIGQUIT, sigquit_handler); /* quit */
+	/* Install signal handlers */
+	Signal (SIGINT, sigint_handler);   /* ctrl-c */
+	Signal (SIGTSTP, sigtstp_handler); /* ctrl-z */
+	Signal (SIGCHLD, sigchld_handler); /* Terminated or stopped child */
+	Signal (SIGQUIT, sigquit_handler); /* quit */
 
-  while (true)
-  {
-    char buff[MAXLINE];
-    printf(prompt);
-    fflush(stdout);
+	while (true)
+	{
+		char buff[MAXLINE];
+		printf(prompt);
+		fflush(stdout);
 
-    fgets(buff, sizeof(buff), stdin);
+		fgets(buff, sizeof(buff), stdin);
 
-    if(feof(stdin))
-	break;
-    
-    eval(buff);
+		if(feof(stdin))
+			break;
 
-    fflush(stdout);
-  }
+		eval(buff);
 
-  /* Quit */
-  exit (0);
+		fflush(stdout);
+	}
+
+	/* Quit */
+	exit (0);
 }
 
 /*
-*  parseline - Parse the command line and build the argv array.
-*
-*  Characters enclosed in single quotes are treated as a single
-*  argument.
-*
-*  Returns true if the user has requested a BG job, false if
-*  the user has requested a FG job.
-*/
+ *  parseline - Parse the command line and build the argv array.
+ *
+ *  Characters enclosed in single quotes are treated as a single
+ *  argument.
+ *
+ *  Returns true if the user has requested a BG job, false if
+ *  the user has requested a FG job.
+ */
 bool
 parseline (const char* cmdline, char** argv)
 {
-  static char array[MAXLINE]; /* holds local copy of command line*/
-  char* buf = array;          /* ptr that traverses command line*/
-  char* delim;                /* points to first space delimiter*/
-  int argc;                   /* number of args*/
-  bool bg;                     /* background job?*/
+	static char array[MAXLINE]; /* holds local copy of command line*/
+	char* buf = array;          /* ptr that traverses command line*/
+	char* delim;                /* points to first space delimiter*/
+	int argc;                   /* number of args*/
+	bool bg;                     /* background job?*/
 
-  strcpy (buf, cmdline);
-  buf[strlen (buf) - 1] = ' ';  /* replace trailing '\n' with space*/
-  while (*buf && (*buf == ' ')) /* ignore leading spaces*/
-    buf++;
+	strcpy (buf, cmdline);
+	buf[strlen (buf) - 1] = ' ';  /* replace trailing '\n' with space*/
+	while (*buf && (*buf == ' ')) /* ignore leading spaces*/
+		buf++;
 
-  /* Build the argv list*/
-  argc = 0;
-  if (*buf == '\'')
-  {
-    buf++;
-    delim = strchr (buf, '\'');
-  }
-  else
-  {
-    delim = strchr (buf, ' ');
-  }
+	/* Build the argv list*/
+	argc = 0;
+	if (*buf == '\'')
+	{
+		buf++;
+		delim = strchr (buf, '\'');
+	}
+	else
+	{
+		delim = strchr (buf, ' ');
+	}
 
-  while (delim)
-  {
-    argv[argc++] = buf;
-    *delim = '\0';
-    buf = delim + 1;
-    while (*buf && (*buf == ' ')) /* ignore spaces*/
-      buf++;
+	while (delim)
+	{
+		argv[argc++] = buf;
+		*delim = '\0';
+		buf = delim + 1;
+		while (*buf && (*buf == ' ')) /* ignore spaces*/
+			buf++;
 
-    if (*buf == '\'')
-    {
-      buf++;
-      delim = strchr (buf, '\'');
-    }
-    else
-    {
-      delim = strchr (buf, ' ');
-    }
-  }
-  argv[argc] = NULL;
+		if (*buf == '\'')
+		{
+			buf++;
+			delim = strchr (buf, '\'');
+		}
+		else
+		{
+			delim = strchr (buf, ' ');
+		}
+	}
+	argv[argc] = NULL;
 
-  if (argc == 0) /* ignore blank line*/
-    return true;
+	if (argc == 0) /* ignore blank line*/
+		return true;
 
-  /* should the job run in the background?*/
-  if ((bg = (*argv[argc - 1] == '&')) != false)
-  {
-    argv[--argc] = NULL;
-  }
-  return bg;
+	/* should the job run in the background?*/
+	if ((bg = (*argv[argc - 1] == '&')) != false)
+	{
+		argv[--argc] = NULL;
+	}
+	return bg;
 }
 
 /*
- * eval - 
+ * eval - Runs command input by user.
  *
+ * Runs parseline to tokenize input buffer into an array of arguments
+ * Blocks signals while reading/setting global variables and then
+ * unblocks to run command.
  *
+ * If the command is recognized as a built-in command it is run
+ * by the current process. If not, a child process is created
+ * with fork() which then runs the supplied command.
  *
+ * Supports running process in background if a '&' is present
+ * at the end of the input buffer.
  */
 void
 eval (char* cmdline)
 {
-  char* argv[MAXARGS];    // Argument list
-  char buf[MAXLINE];    // Holds modified command line
-  int bg;   // Should job run in bg or fg?
+	char* argv[MAXARGS];    // Argument list
+	char buf[MAXLINE];    // Holds modified command line
+	int bg;   // Should job run in bg or fg?
 
-  strcpy(buf, cmdline);
-  bg = parseline(buf, argv);
+	strcpy(buf, cmdline);
+	bg = parseline(buf, argv);
 
-  if (argv[0] == NULL)
-    return;
-  
-  sigemptyset (&mask);
-  sigaddset (&mask, SIGCHLD);
-  sigprocmask (SIG_BLOCK, &mask, &prev);
-  
-  if (!builtin_cmd(argv))
-  {
-    /* Child runs job */
-    g_runningPid = fork();
-    if (g_runningPid < 0)
-  	{
-      fprintf (stderr, "fork error (%s) -- exiting\n",
-        strerror (errno));
-      exit (-1);
-  	}
-    if (g_runningPid == 0)
-    {
-      setpgid(0, 0);
-      sigprocmask(SIG_SETMASK, &prev, NULL);
+	if (argv[0] == NULL)
+		return;
 
-      if (execvp(argv[0], argv) < 0)
-      {
-        printf("%s: Command not found.\n", argv[0]);
-        exit(0);
-      }
-      waitfg();
-    }
+	sigemptyset (&mask);
+	sigaddset (&mask, SIGCHLD);
+	sigprocmask (SIG_BLOCK, &mask, &prev);
 
-    sigprocmask(SIG_SETMASK, &prev, NULL); // Unblock SIGCHLD
+	if (!builtin_cmd(argv))
+	{
+		/* Child runs job */
+		g_runningPid = fork();
+		if (g_runningPid < 0)
+		{
+			fprintf (stderr, "fork error (%s) -- exiting\n",
+					strerror (errno));
+			exit (1);
+		}
+		if (g_runningPid == 0)
+		{
+			setpgid(0, 0);
+			sigprocmask(SIG_SETMASK, &prev, NULL);
 
-    if (!bg)
-    {
-      waitfg();
-    }
-    else
-    {
-      printf("%d %s", g_runningPid, cmdline);
-      fflush(stdout);
-    }
-  }
+			if (execvp(argv[0], argv) < 0)
+			{
+				printf("%s: Command not found\n", argv[0]);
+				exit(0);
+			}
+			waitfg();
+		}
 
-  return;
+		sigprocmask(SIG_SETMASK, &prev, NULL); // Unblock SIGCHLD
+
+		if (!bg)
+		{
+			waitfg();
+		}
+		else
+		{
+			printf("(%d) %s", g_runningPid, cmdline);
+			fflush(stdout);
+		}
+	}
+
+	return;
 }
 
+/*
+ * builtin_cmd - Checks to see if given command is a built in shell command
+ * and runs it if it is. 
+ *
+ * fg - brings suspended process back to the foreground and locks shell.
+ *
+ * Returns TRUE if given command is built in.
+ * FALSE if it is not a built in command.
+ */
 bool
 builtin_cmd (char** argv)
 {
 	/* Exit shell when user types 'exit' */
 	if (strcmp(argv[0], "quit") == 0)
 		exit(0);
-	
+
 	if (strcmp(argv[0], "fg") == 0)
 	{
 		if (g_suspendedPid > 0)
@@ -294,13 +320,17 @@ builtin_cmd (char** argv)
 	return false;
 }
 
+/*
+ * waitfg - Indefinitely waits for the running pid to exit and be set to zero.
+ * While it's waiting, the shell is locked via sigsuspend.
+ */
 void
 waitfg ()
 {
-  while (g_runningPid != 0)
-  {
-    sigsuspend (&prev);
-  }
+	while (g_runningPid != 0)
+	{
+		sigsuspend (&prev);
+	}
 }
 
 /*
@@ -310,36 +340,36 @@ waitfg ()
  */
 
 /*
-*  sigchld_handler - The kernel sends a SIGCHLD to the shell whenever
-*      a child job terminates (becomes a zombie), or stops because it
-*      received a SIGSTOP or SIGTSTP signal. The handler reaps all
-*      available zombie children, but doesn't wait for any other
-*      currently running children to terminate.
-*/
+ *  sigchld_handler - The kernel sends a SIGCHLD to the shell whenever
+ *      a child job terminates (becomes a zombie), or stops because it
+ *      received a SIGSTOP or SIGTSTP signal. The handler reaps all
+ *      available zombie children, but doesn't wait for any other
+ *      currently running children to terminate.
+ */
 void
 sigchld_handler (int sig)
 {
-  int olderrno = errno;
+	int olderrno = errno;
 
-  int status;
-  pid_t wpid;
+	int status;
+	pid_t wpid;
 
-  while ((wpid = waitpid(-1, &status, WNOHANG|WUNTRACED)) > 0)
-  {
-	if (WIFSIGNALED(status))
+	while ((wpid = waitpid(-1, &status, WNOHANG|WUNTRACED)) > 0)
 	{
-		printf ("Job (%d) terminated by signal %d\n", wpid, WTERMSIG(status));
+		if (WIFSIGNALED(status))
+		{
+			printf ("Job (%d) terminated by signal %d\n", wpid, WTERMSIG(status));
+		}
+		else if (WIFSTOPPED(status))
+		{
+			printf ("Job (%d) stopped by signal %d\n", wpid, WSTOPSIG(status));
+			g_suspendedPid = g_runningPid;
+		}
+		g_runningPid = 0;
 	}
-	else if (WIFSTOPPED(status))
-	{
-		printf ("Job (%d) stopped by signal %d\n", wpid, WSTOPSIG(status));
-		g_suspendedPid = g_runningPid;
-	}
-	g_runningPid = 0;
-  }
 
-  errno = olderrno;
-  return;
+	errno = olderrno;
+	return;
 }
 
 /*
@@ -350,9 +380,9 @@ sigchld_handler (int sig)
 void
 sigint_handler (int sig)
 {
-  if (g_runningPid > 0)
-	  kill(-g_runningPid, SIGINT);  
-  return;
+	if (g_runningPid > 0)
+		kill(-g_runningPid, SIGINT);  
+	return;
 }
 
 /*
@@ -360,13 +390,14 @@ sigint_handler (int sig)
  *      the user types ctrl-z at the keyboard. Catch it and suspend the
  *      foreground job by sending it a SIGTSTP.
  */
+	
 void
 sigtstp_handler (int sig)
 {
-  if (g_runningPid > 0)
-    kill(-g_runningPid, SIGTSTP);
+	if (g_runningPid > 0)
+		kill(-g_runningPid, SIGTSTP);
 
-  return;
+	return;
 }
 
 /*
@@ -382,54 +413,45 @@ sigtstp_handler (int sig)
 void
 unix_error (char* msg)
 {
-  fprintf (stdout, "%s: %s\n", msg, strerror (errno));
-  exit (1);
+	fprintf (stdout, "%s: %s\n", msg, strerror (errno));
+	exit (1);
 }
 
 /*
-*  app_error - application-style error routine
-*/
+ *  app_error - application-style error routine
+ */
 void
 app_error (char* msg)
 {
-  fprintf (stdout, "%s\n", msg);
-  exit (1);
+	fprintf (stdout, "%s\n", msg);
+	exit (1);
 }
 
 /*
-*  Signal - wrapper for the sigaction function
-*/
+ *  Signal - wrapper for the sigaction function
+ */
 handler_t*
 Signal (int signum, handler_t* handler)
 {
-  struct sigaction action, old_action;
+	struct sigaction action, old_action;
 
-  action.sa_handler = handler;
-  sigemptyset (&action.sa_mask); /* block sigs of type being handled*/
-  action.sa_flags = SA_RESTART;  /* restart syscalls if possible*/
+	action.sa_handler = handler;
+	sigemptyset (&action.sa_mask); /* block sigs of type being handled*/
+	action.sa_flags = SA_RESTART;  /* restart syscalls if possible*/
 
-  if (sigaction (signum, &action, &old_action) < 0)
-    unix_error ("Signal error");
-  return (old_action.sa_handler);
+	if (sigaction (signum, &action, &old_action) < 0)
+		unix_error ("Signal error");
+	return (old_action.sa_handler);
 }
 
-/* void
-sig_print (pid_t pid, int sig)
-{
-	Sio_puts("Job (");
-	Sio_putl(long(pid));
-	Sio_puts(") stopped by signal ");
-	Sio_putl(long(sig));
-	Sio_puts("\n");
-} */
 
 /*
-*  sigquit_handler - The driver program can gracefully terminate the
-*     child shell by sending it a SIGQUIT signal.
-*/
+ *  sigquit_handler - The driver program can gracefully terminate the
+ *     child shell by sending it a SIGQUIT signal.
+ */
 void
 sigquit_handler (int sig)
 {
-  printf ("Terminating after receipt of SIGQUIT signal\n");
-  exit (1);
+	printf ("Terminating after receipt of SIGQUIT signal\n");
+	exit (1);
 }
