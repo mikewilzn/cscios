@@ -1,0 +1,7 @@
+#
+# trace09.txt - Forward SIGINT to every process in foreground process group
+#
+./mysplit 4
+SLEEP 2
+INT
+/bin/ps -o pid,tty,stat,time,comm
