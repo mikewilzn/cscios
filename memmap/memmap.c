@@ -35,7 +35,7 @@ main (int argc, char* argv[])
 
     /* Open destination file. Creating new file in read/write mode with correct permissions. */
     int destFile = open(argv[2], O_CREAT | O_RDWR | O_TRUNC, 0600);
-    if(destFile < 0)
+    if (destFile < 0)
     {
         perror("Cannot open output file\n");
         exit(EXIT_FAILURE);
