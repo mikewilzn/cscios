@@ -62,7 +62,14 @@ mysystem (char* command)
 
 	if (child == pid)
 	{
-		printf("Exit status: %d\n", WEXITSTATUS(status));
+		if (WIFEXITED(status))
+		{
+			printf("Exit status: %d\n", WEXITSTATUS(status));
+		}
+		else if (WIFSIGNALED(status))
+		{
+			printf("Exit status: %d\n", WTERMSIG(status));
+		}
 	}
 	return;
 }
