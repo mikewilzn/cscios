@@ -21,6 +21,8 @@ typedef byte*    address;
 const uint8_t WORD_SIZE = sizeof (word);
 const uint8_t TAG_SIZE = sizeof (tag);
 const uint8_t DWORD_SIZE = WORD_SIZE * 2;
+const uint8_t ALIGNMENT = DWORD_SIZE;
+const uint8_t MIN_BLOCK_SIZE = 2;
 // Add others... 
 
 /****************************************************************/
