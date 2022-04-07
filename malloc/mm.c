@@ -22,7 +22,11 @@ const uint8_t WORD_SIZE = sizeof (word);
 const uint8_t DWORD_SIZE = WORD_SIZE * 2;
 const uint8_t ALIGNMENT = DWORD_SIZE;
 const uint8_t MIN_BLOCK_SIZE = 2;
-// Add others... 
+
+/****************************************************************/
+// Private global variables
+static address g_heapBase;
+
 
 /****************************************************************/
 // Inline functions
@@ -88,6 +92,12 @@ static inline void toggleBlock (address ptr)
 {
   *header(ptr) ^= 1;
   *footer(ptr) ^= 1;
+}
+
+/* Increase heap size by given number of bytes */
+static inline address extendHeap (uint32_t numWords)
+{
+  return mem_sbrk (numWords * DWORD_SIZE);
 }
 
 /****************************************************************/
