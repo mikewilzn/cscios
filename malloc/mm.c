@@ -94,10 +94,17 @@ static inline void toggleBlock (address ptr)
   *footer(ptr) ^= 1;
 }
 
-/* Increase heap size by given number of bytes */
+/* 
+ * Increase heap size by given number of bytes 
+ * Returns base pointer of the new block
+ * or NULL if there is an error
+ */
 static inline address extendHeap (uint32_t numWords)
 {
-  return mem_sbrk (numWords * DWORD_SIZE);
+  address ptr = mem_sbrk (numWords * WORD_SIZE);
+  makeBlock (ptr, numWords, false);
+  *nextHeader(ptr) = 0 | 1;
+  return ptr;
 }
 
 /****************************************************************/
@@ -106,7 +113,11 @@ static inline address extendHeap (uint32_t numWords)
 int
 mm_init (void)
 {
-  return 0;
+  g_heapBase = mem_sbrk (4 * DWORD_SIZE);
+  if (isAllocated(g_heapBase))
+    return 0;
+  else
+    return -1;
 }
 
 /****************************************************************/
