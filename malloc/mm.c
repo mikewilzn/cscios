@@ -19,7 +19,6 @@ typedef byte*    address;
 // Useful constants
 
 const uint8_t WORD_SIZE = sizeof (word);
-const uint8_t TAG_SIZE = sizeof (tag);
 const uint8_t DWORD_SIZE = WORD_SIZE * 2;
 const uint8_t ALIGNMENT = DWORD_SIZE;
 const uint8_t MIN_BLOCK_SIZE = 2;
@@ -31,7 +30,7 @@ const uint8_t MIN_BLOCK_SIZE = 2;
 /* returns header address given basePtr */
 static inline tag* header (address ptr)
 {
-  return (tag*) (ptr - TAG_SIZE);
+  return (tag*) (ptr - sizeof(tag));
 }
 
 /* Returns true if the block is allocated */
