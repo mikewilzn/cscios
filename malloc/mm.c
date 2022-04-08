@@ -21,6 +21,7 @@ typedef byte*    address;
 const uint8_t WORD_SIZE = sizeof (word);
 const uint8_t DWORD_SIZE = WORD_SIZE * 2;
 const uint8_t ALIGNMENT = DWORD_SIZE;
+const uint8_t TAG_SIZE = sizeof (tag);
 const uint8_t MIN_BLOCK_SIZE = 2;
 
 /****************************************************************/
@@ -133,8 +134,37 @@ mm_init (void)
 void*
 mm_malloc (uint32_t size)
 {
-  fprintf(stderr, "allocate block of size %u\n", size);
-  return NULL;
+  address tempPtr = g_heapBase;
+
+  /* Verify double-word alignment of size */
+  uint32_t num_words = size + (2 * TAG_SIZE);
+  num_words = (num_words + (DWORD_SIZE - 1)) / DWORD_SIZE;
+  num_words = num_words * 2;
+  uint32_t ptr_size = sizeOf(tempPtr);
+
+  if (size == 0)
+    return NULL;
+
+  while(isAllocated(tempPtr) || num_words > ptr_size) // checks if block will fit 
+  {
+    tempPtr = nextBlock(tempPtr);
+    ptr_size = sizeOf(tempPtr);
+  }
+
+  if (num_words == ptr_size)
+    toggleBlock(tempPtr);
+  else
+  makeBlock(tempPtr, num_words, true); // make the block  
+
+  if (ptr_size - num_words >= MIN_BLOCK_SIZE) // if there is enough room to create an extra free block
+    makeBlock(nextBlock(tempPtr), ptr_size - num_words, false); // if so run this 
+  
+  /* extendHeap extends heap by num_words and returns base pointer of the newly created free block */
+  if (tempPtr = extendHeap(num_words) == NULL)
+    return NULL;
+  
+  toggleBlock(tempPtr);
+  return tempPtr;
 }
 
 /****************************************************************/
