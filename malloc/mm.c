@@ -102,8 +102,11 @@ static inline void toggleBlock (address ptr)
 static inline address extendHeap (uint32_t numWords)
 {
   address ptr = mem_sbrk (numWords * WORD_SIZE);
+  if (ptr == NULL)
+    return NULL;
+
   makeBlock (ptr, numWords, false);
-  *nextHeader(ptr) = 0 | 1;
+  *nextHeader(ptr) = 0 | true; // true = allocated bit 1
   return ptr;
 }
 
@@ -113,11 +116,16 @@ static inline address extendHeap (uint32_t numWords)
 int
 mm_init (void)
 {
-  g_heapBase = mem_sbrk (4 * DWORD_SIZE);
-  if (isAllocated(g_heapBase))
-    return 0;
-  else
+  address ptr = mem_sbrk (4 * DWORD_SIZE);
+  if (ptr == NULL)
     return -1;
+  
+  g_heapBase = ptr + ALIGNMENT; // Moves base pointer to double word alignment
+  
+  /* Create dummy header and footer */
+  *prevFooter(g_heapBase) = (0 | true);
+  *nextHeader(g_heapBase) = (0 | true);
+  return 0;
 }
 
 /****************************************************************/
