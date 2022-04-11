@@ -95,6 +95,38 @@ static inline void toggleBlock (address ptr)
   *footer(ptr) ^= 1;
 }
 
+static inline address coalesce (address ptr)
+{
+  /* Get previous and next block allocation status */
+  bool prevAlloc = *prevFooter(ptr) & (tag)1; // Can't use prevBlock since dummy footer is of size zero
+  bool nextAlloc = isAllocated(nextBlock(ptr));
+  
+  uint32_t size = sizeOf(ptr);
+  
+  if (prevAlloc && nextAlloc) // Both adjacent blocks are allocated
+    return ptr;
+  else if (!prevAlloc && nextAlloc) // Previous block is not allocated
+  {
+    address prev = prevBlock(ptr);
+    size += sizeOf(prev); // Combine size of current block and previous block
+    makeBlock(prev, size, false);
+    return prev;
+  }
+  else if (prevAlloc && !nextAlloc) // Next block is not allocated
+  {
+    size += sizeOf(nextBlock(ptr));
+    makeBlock(ptr, size, false);
+    return ptr;
+  }
+  else // Both adjacent blocks are not allocated
+  {
+    address prev = prevBlock(ptr);
+    size += (sizeOf(prev) + sizeOf(nextBlock(ptr)));
+    makeBlock(prev, size, false);
+    return prev;
+  }
+}
+
 /* 
  * Increase heap size by given number of bytes 
  * Returns base pointer of the new block
@@ -108,7 +140,16 @@ static inline address extendHeap (uint32_t numWords)
 
   makeBlock (ptr, numWords, false);
   *nextHeader(ptr) = 0 | true; // true = allocated bit 1
-  return ptr;
+  return coalesce(ptr);
+}
+
+/* Calculates number of words needed for proper alignment given a particular size */
+static inline uint32_t align (uint32_t size)
+{
+  uint32_t numWords = size + (2 * TAG_SIZE);
+  numWords = (numWords + (DWORD_SIZE - 1)) / DWORD_SIZE;
+  numWords = numWords * 2;
+  return numWords;
 }
 
 /****************************************************************/
@@ -134,45 +175,45 @@ mm_init (void)
 void*
 mm_malloc (uint32_t size)
 {
-  address tempPtr = g_heapBase;
-
-  /* Verify double-word alignment of size */
-  uint32_t num_words = size + (2 * TAG_SIZE);
-  num_words = (num_words + (DWORD_SIZE - 1)) / DWORD_SIZE;
-  num_words = num_words * 2;
-  uint32_t ptr_size = sizeOf(tempPtr);
+  address ptr = g_heapBase;
+  uint32_t numWords = align(size);
+  uint32_t ptrSize = sizeOf(ptr);
 
   if (size == 0)
     return NULL;
 
-  while(isAllocated(tempPtr) || num_words > ptr_size) // checks if block will fit 
+  while(isAllocated(ptr) || numWords > ptrSize) // checks if block will fit 
   {
-    tempPtr = nextBlock(tempPtr);
-    ptr_size = sizeOf(tempPtr);
+    ptr = nextBlock(ptr);
+    ptrSize = sizeOf(ptr);
   }
 
-  if (num_words == ptr_size)
-    toggleBlock(tempPtr);
+  if (numWords == ptrSize)
+    toggleBlock(ptr);
   else
-  makeBlock(tempPtr, num_words, true); // make the block  
+    makeBlock(ptr, numWords, true); // make the block  
 
-  if (ptr_size - num_words >= MIN_BLOCK_SIZE) // if there is enough room to create an extra free block
-    makeBlock(nextBlock(tempPtr), ptr_size - num_words, false); // if so run this 
+  if (ptrSize - numWords >= MIN_BLOCK_SIZE) // if there is enough room to create an extra free block
+    makeBlock(nextBlock(ptr), ptrSize - numWords, false); // if so run this 
   
   /* extendHeap extends heap by num_words and returns base pointer of the newly created free block */
-  if (tempPtr = extendHeap(num_words) == NULL)
+  ptr = extendHeap(numWords);
+  if (ptr == NULL)
     return NULL;
   
-  toggleBlock(tempPtr);
-  return tempPtr;
+  toggleBlock(ptr);
+  return ptr;
 }
 
 /****************************************************************/
 
+/* sets the specified block to not allocated and tries to coalesce with 
+  next and previous blocks to make more free space */
 void
 mm_free (void *ptr)
 {
-  fprintf(stderr, "free block at %p\n", ptr);
+  toggleBlock(ptr);
+  coalesce(ptr);
 }
 
 /****************************************************************/
@@ -180,8 +221,54 @@ mm_free (void *ptr)
 void*
 mm_realloc (void *ptr, uint32_t size)
 {
-  fprintf(stderr, "realloc block at %p to %u\n", ptr, size);
-  return NULL;
+  /* the words needed for new block */
+  uint32_t newWords = align(size);
+  /* if null malloc the size */
+  if (ptr == NULL)
+  {
+    return mm_malloc(size);
+  }
+  /* if size 0 then free */
+  if (size == 0)
+  {
+    mm_free(ptr);
+    return NULL;
+  }
+
+  /* store pointer to original payload */
+  address original = ptr;
+  uint32_t originalSize = sizeOf(original);
+  /* check next block for free to save space */
+  if (!isAllocated(nextBlock(original)))
+  {
+    originalSize += sizeOf(nextBlock(original));
+  }
+  /*check current block for free to save space */
+  if (!isAllocated((address)header(original)))
+  {
+    ptr = prevBlock(original);
+    originalSize += sizeOf(ptr);
+  }
+  /* if original size is less than size getting placed, place the block */
+  if (newWords <= originalSize)
+  {
+    /* copy data into ptr so the pointer can be placed */
+    memcpy(ptr, original, sizeOf(original) * WORD_SIZE - WORD_SIZE);
+    makeBlock(ptr, newWords, 1);
+    /*check for empty space, if free space exists then free the remaining blocks*/
+    if ((int)(originalSize - newWords) >= 0)
+    {
+      makeBlock(nextBlock(ptr), originalSize - newWords, 0);
+    }
+    return ptr;
+  }
+  /* malloc a new block when no space can be found */
+  address newBlock = mm_malloc(size);
+  /*copy the data from old block to new block*/
+  memcpy(newBlock, original, originalSize * WORD_SIZE - WORD_SIZE);
+  mm_free(original);
+  /*return the newblock's base pointer*/
+  return newBlock;
 }
 
 void
@@ -197,39 +284,5 @@ printBlock (address p)
 	  p, sizeOf (p), isAllocated (p)); 
 }
 
-int
-main ()
-{
-  // Each line is a DWORD
-  //        Word      0       1
-  //                 ====  ===========
-  /* //tag heapZero[] = { 0, 0, 1, 4 | 1,
-  		     0, 0, 0, 0,
-  		     0, 0, 4 | 1, 2 | 0,
-  		     0, 0, 2 | 0, 1 };  */
-  tag heapZero[16] = { 0 }; 
-  // Point to DWORD 1 (DWORD 0 has no space before it)
-  address g_heapBase = (address) heapZero + DWORD_SIZE;
-  makeBlock (g_heapBase, 6 , 0);
-  *prevFooter (g_heapBase) = 0 | 1;
-  *nextHeader (g_heapBase) = 1;
-  //makeBlock (g_heapBase, 4 , 1);
-  //makeBlock (nextBlock (g_heapBase), 2, 0); 
-  printPtrDiff ("header", header (g_heapBase), heapZero);
-  printPtrDiff ("footer", footer (g_heapBase), heapZero);
-  printPtrDiff ("nextBlock", nextBlock (g_heapBase), heapZero);
-  printPtrDiff ("prevFooter", prevFooter (g_heapBase), heapZero);
-  printPtrDiff ("nextHeader", nextHeader (g_heapBase), heapZero);
-  address twoWordBlock = nextBlock (g_heapBase); 
-  printPtrDiff ("prevBlock", prevBlock (twoWordBlock), heapZero);
 
-  printf ("%s: %d\n", "isAllocated", isAllocated (g_heapBase)); 
-  printf ("%s: %d\n", "sizeOf", sizeOf (g_heapBase));
 
-  // Canonical loop to traverse all blocks
-  printf ("All blocks\n"); 
-  for (address p = g_heapBase; sizeOf (p) != 0; p = nextBlock (p))
-    printBlock (p);
-  
-  return 0;
-}
