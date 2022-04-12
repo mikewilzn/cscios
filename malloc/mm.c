@@ -28,7 +28,8 @@ const uint8_t MIN_BLOCK_SIZE = 2;
 // Private global variables
 static address g_heapBase;
 
-
+int
+mm_check();
 /****************************************************************/
 // Inline functions
 
@@ -99,30 +100,15 @@ static inline address coalesce (address ptr)
 {
   /* Get previous and next block allocation status */
   bool prevAlloc = *prevFooter(ptr) & (tag)1; // Can't use prevBlock since dummy footer is of size zero
-  bool nextAlloc = isAllocated(nextBlock(ptr));
-  
-  uint32_t size = sizeOf(ptr);
-  
-  if (prevAlloc && nextAlloc) // Both adjacent blocks are allocated
+  //bool nextAlloc = isAllocated(nextBlock(ptr));
+
+  if (prevAlloc)
     return ptr;
-  else if (!prevAlloc && nextAlloc) // Previous block is not allocated
+  
+  if(!prevAlloc && ptr == g_heapBase)
   {
     address prev = prevBlock(ptr);
-    size += sizeOf(prev); // Combine size of current block and previous block
-    makeBlock(prev, size, false);
-    return prev;
-  }
-  else if (prevAlloc && !nextAlloc) // Next block is not allocated
-  {
-    size += sizeOf(nextBlock(ptr));
-    makeBlock(ptr, size, false);
-    return ptr;
-  }
-  else // Both adjacent blocks are not allocated
-  {
-    address prev = prevBlock(ptr);
-    size += (sizeOf(prev) + sizeOf(nextBlock(ptr)));
-    makeBlock(prev, size, false);
+    makeBlock(prev, sizeOf(prev) + sizeOf(ptr), false);
     return prev;
   }
 }
@@ -134,7 +120,7 @@ static inline address coalesce (address ptr)
  */
 static inline address extendHeap (uint32_t numWords)
 {
-  address ptr = mem_sbrk ((int)numWords * WORD_SIZE);
+  address ptr = mem_sbrk (numWords * WORD_SIZE);
   if (ptr == NULL)
     return NULL;
 
@@ -167,6 +153,9 @@ mm_init (void)
   /* Create dummy header and footer */
   *prevFooter(g_heapBase) = (0 | true);
   *nextHeader(g_heapBase) = (0 | true);
+
+  makeBlock(g_heapBase, 6, 0);
+
   return 0;
 }
 
@@ -180,30 +169,28 @@ mm_malloc (uint32_t size)
 
   if (size == 0)
     return NULL;
-
-  while(sizeOf(ptr) != 0) // checks if block will fit 
+  
+  while (sizeOf(ptr) != 0)
   {
-    if (!isAllocated(ptr))
+    if(!isAllocated(ptr))
     {
-      tag ptrSize = sizeOf(ptr);
-      if (ptrSize - numWords >= MIN_BLOCK_SIZE)
+      if (sizeOf(ptr) - numWords >= MIN_BLOCK_SIZE)
+      {
+        // split the block if size is greater than current block
+        tag oldSize = sizeOf(ptr);
+        makeBlock(ptr, numWords, true);
+        makeBlock(nextBlock(ptr), oldSize - numWords, false);
+        return ptr;
+      }
+      if (sizeOf(ptr) == numWords)
       {
         makeBlock(ptr, numWords, true);
-        makeBlock(nextBlock(ptr), ptrSize - numWords, false);
         return ptr;
       }
-      else if (ptrSize == numWords)
-      {
-        toggleBlock(ptr);
-        return ptr;
-      }
-      ptr = extendHeap(numWords);
-      if (ptr == NULL)
-        return NULL;
-      toggleBlock(ptr);
     }
     ptr = nextBlock(ptr);
   }
+
   /* If we reach end of heap without finding a free block */
   ptr = extendHeap(numWords);
   if (ptr == NULL)
@@ -279,16 +266,32 @@ mm_realloc (void *ptr, uint32_t size)
 }
 
 void
-printPtrDiff (const char* header, void* p, void* base)
+printBlock (address ptr)
 {
-  printf ("%s: %td\n", header, (address) p - (address) base);
+  printf("Block Addr %p; Size %u; Alloc %d\n", ptr, sizeOf(ptr), isAllocated(ptr));
 }
 
-void
-printBlock (address p)
+int
+main ()
 {
-  printf ("Block Addr %p; Size %u; Alloc %d\n",
-	  p, sizeOf (p), isAllocated (p)); 
+  mem_init();
+  mm_init();
+  mm_malloc(22);
+  mm_check();
+  mm_malloc(26);
+  mm_check();
+  mm_malloc(4);
+  mm_check();
+}
+
+int mm_check()
+{
+    // canonical loop to traverse all blocks
+    printf("all blocks\n");
+    for(address p = g_heapBase; sizeOf(p) !=0; p = nextBlock(p)){
+        printBlock(p);
+    }
+    return 0;
 }
 
 
