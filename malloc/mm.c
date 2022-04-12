@@ -120,7 +120,7 @@ static inline address coalesce (address ptr)
  */
 static inline address extendHeap (uint32_t numWords)
 {
-  address ptr = mem_sbrk (numWords * WORD_SIZE);
+  address ptr = mem_sbrk ((int)numWords * WORD_SIZE);
   if (ptr == NULL)
     return NULL;
 
