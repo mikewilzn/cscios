@@ -101,16 +101,13 @@ static inline address coalesce (address ptr)
   /* Get previous and next block allocation status */
   bool prevAlloc = *prevFooter(ptr) & (tag)1; // Can't use prevBlock since dummy footer is of size zero
   //bool nextAlloc = isAllocated(nextBlock(ptr));
-
-  if (prevAlloc)
-    return ptr;
-  
   if(!prevAlloc && ptr == g_heapBase)
   {
     address prev = prevBlock(ptr);
     makeBlock(prev, sizeOf(prev) + sizeOf(ptr), false);
     return prev;
   }
+  return ptr;
 }
 
 /* 
