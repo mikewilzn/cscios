@@ -177,31 +177,38 @@ mm_malloc (uint32_t size)
 {
   address ptr = g_heapBase;
   uint32_t numWords = align(size);
-  uint32_t ptrSize = sizeOf(ptr);
 
   if (size == 0)
     return NULL;
 
-  while(isAllocated(ptr) || numWords > ptrSize) // checks if block will fit 
+  while(sizeOf(ptr) != 0) // checks if block will fit 
   {
+    if (!isAllocated(ptr))
+    {
+      tag ptrSize = sizeOf(ptr);
+      if (ptrSize - numWords >= MIN_BLOCK_SIZE)
+      {
+        makeBlock(ptr, numWords, true);
+        makeBlock(nextBlock(ptr), ptrSize - numWords, false);
+        return ptr;
+      }
+      else if (ptrSize == numWords)
+      {
+        toggleBlock(ptr);
+        return ptr;
+      }
+      ptr = extendHeap(numWords);
+      if (ptr == NULL)
+        return NULL;
+      toggleBlock(ptr);
+    }
     ptr = nextBlock(ptr);
-    ptrSize = sizeOf(ptr);
   }
-
-  if (numWords == ptrSize)
-    toggleBlock(ptr);
-  else
-    makeBlock(ptr, numWords, true); // make the block  
-
-  if (ptrSize - numWords >= MIN_BLOCK_SIZE) // if there is enough room to create an extra free block
-    makeBlock(nextBlock(ptr), ptrSize - numWords, false); // if so run this 
-  
-  /* extendHeap extends heap by num_words and returns base pointer of the newly created free block */
+  /* If we reach end of heap without finding a free block */
   ptr = extendHeap(numWords);
   if (ptr == NULL)
     return NULL;
-  
-  toggleBlock(ptr);
+  makeBlock(ptr, numWords, true);
   return ptr;
 }
 
