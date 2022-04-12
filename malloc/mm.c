@@ -1,3 +1,19 @@
+/*
+  Filename: mm.c
+  Author: Mike Wilson and Tanner Michael
+  Course: 380
+  Assignment: malloc
+  Description: This file implements malloc, free, realloc using a list and coalesce on free. 
+  The size is in words and we are making sure to align on the correct word
+  If freeblock found is bigger than the size needed (malloc) split the free block 
+  into the size needed and then a free portion afterward. 
+*/
+
+
+
+
+
+
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
