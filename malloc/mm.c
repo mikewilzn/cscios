@@ -9,11 +9,6 @@
   into the size needed and then a free portion afterward. 
 */
 
-
-
-
-
-
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -243,54 +238,22 @@ mm_free (void *ptr)
 void*
 mm_realloc (void *ptr, uint32_t size)
 {
-  /* the words needed for new block */
-  uint32_t newWords = align(size);
-  /* if null malloc the size */
   if (ptr == NULL)
   {
-    return mm_malloc(size);
+    ptr = mm_malloc(size);
+    return ptr;
   }
-  /* if size 0 then free */
+
   if (size == 0)
   {
     mm_free(ptr);
-    return NULL;
-  }
-
-  /* store pointer to original payload */
-  address original = ptr;
-  uint32_t originalSize = sizeOf(original);
-  /* check next block for free to save space */
-  if (!isAllocated(nextBlock(original)))
-  {
-    originalSize += sizeOf(nextBlock(original));
-  }
-  /*check current block for free to save space */
-  if (!isAllocated((address)header(original)))
-  {
-    ptr = prevBlock(original);
-    originalSize += sizeOf(ptr);
-  }
-  /* if original size is less than size getting placed, place the block */
-  if (newWords <= originalSize)
-  {
-    /* copy data into ptr so the pointer can be placed */
-    memcpy(ptr, original, sizeOf(original) * WORD_SIZE - WORD_SIZE);
-    makeBlock(ptr, newWords, 1);
-    /*check for empty space, if free space exists then free the remaining blocks*/
-    if ((int)(originalSize - newWords) >= 0)
-    {
-      makeBlock(nextBlock(ptr), originalSize - newWords, 0);
-    }
     return ptr;
   }
-  /* malloc a new block when no space can be found */
-  address newBlock = mm_malloc(size);
-  /*copy the data from old block to new block*/
-  memcpy(newBlock, original, originalSize * WORD_SIZE - WORD_SIZE);
-  mm_free(original);
-  /*return the newblock's base pointer*/
-  return newBlock;
+
+  address tempPtr = mm_malloc(size);
+  tempPtr = memcpy(tempPtr, ptr, sizeOf(ptr) * WORD_SIZE - WORD_SIZE);
+  mm_free(ptr);
+  return tempPtr;
 }
 
 void
