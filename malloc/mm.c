@@ -166,33 +166,48 @@ mm_malloc (uint32_t size)
 
   if (size == 0)
     return NULL;
-  
-  while (sizeOf(ptr) != 0)
+  // loop through heap
+  for (address ptr = g_heapBase; sizeOf(ptr) == 0; ptr = nextBlock(ptr))
   {
-    if(!isAllocated(ptr))
+    //if allocated or too small continue looking
+    if (isAllocated(ptr))
     {
-      if (sizeOf(ptr) - numWords >= MIN_BLOCK_SIZE)
-      {
-        // split the block if size is greater than current block
-        tag oldSize = sizeOf(ptr);
-        makeBlock(ptr, numWords, true);
-        makeBlock(nextBlock(ptr), oldSize - numWords, false);
-        return ptr;
-      }
-      if (sizeOf(ptr) == numWords)
-      {
-        makeBlock(ptr, numWords, true);
-        return ptr;
-      }
+      continue;
     }
-    ptr = nextBlock(ptr);
+    // still not big enough
+    else if (sizeOf(ptr) < numWords)
+    {
+      continue;
+    }
+    //found adequate block
+    else if (sizeOf(ptr) == size)
+    {
+      makeBlock(ptr, numWords, true);
+      return ptr;
+    }
+    // size is greater than curr block so split block 
+    else if (sizeOf(ptr) > size)
+    {
+      tag oldSize = sizeOf(ptr);
+      makeBlock(ptr, numWords, true);
+      makeBlock(nextBlock(ptr), oldSize - numWords, false);
+      return ptr;
+    }
   }
-
-  /* If we reach end of heap without finding a free block */
+  // end of heap reached 
   ptr = extendHeap(numWords);
-  if (ptr == NULL)
-    return NULL;
-  makeBlock(ptr, numWords, true);
+  tag ptrSize = sizeOf(ptr);
+  //if extended heap matches required size then place it 
+  if (ptrSize == numWords)
+  {
+    makeBlock(ptr, numWords, true);
+  }
+  // place the block and if extra space, free the rest
+  else
+  {
+    makeBlock(ptr, numWords, true);
+    makeBlock(nextBlock(ptr), ptrSize - numWords, false);
+  }
   return ptr;
 }
 
@@ -268,7 +283,7 @@ printBlock (address ptr)
   printf("Block Addr %p; Size %u; Alloc %d\n", ptr, sizeOf(ptr), isAllocated(ptr));
 }
 
-int
+/* int
 main ()
 {
   mem_init();
@@ -279,7 +294,7 @@ main ()
   mm_check();
   mm_malloc(4);
   mm_check();
-}
+} */
 
 int mm_check()
 {
