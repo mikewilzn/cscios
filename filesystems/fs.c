@@ -11,6 +11,14 @@ struct fs_t
   // you determine what goes here
 };
 
+struct inode
+{
+	char name[16];		// file name
+	int size;		// file size (in number of blocks)
+	int blockPointers[8];	// direct block pointers
+	int used;		// 0 => inode is free; 1 => in use
+};
+
 // open the file with the above name
 void
 fs_open (struct fs_t *fs, char diskName[16])
