@@ -8,7 +8,7 @@
 
 struct fs_t
 {
-  // you determine what goes here
+	int fd;
 };
 
 struct inode
@@ -24,6 +24,12 @@ void
 fs_open (struct fs_t *fs, char diskName[16])
 {
   // this file will act as the "disk" for your file system
+  if ((fs->fd = open(diskName, O_RDWR)) < 0)
+  {
+	  printf("Error opening filesystem\n");
+	  exit(1);
+  }
+  printf("Disk [ %s ] opened successfully\n", diskName);
 }
 
 // close and clean up all associated things
