@@ -207,24 +207,54 @@ fs_delete (struct fs_t *fs, char name[16])
 	void
 fs_ls (struct fs_t *fs)
 {
+	struct inode inode;
 	// Step 1: read in each inode and print!
+	lseek(fs->fd, FS_NUM_BLOCKS, SEEK_SET);
 	// Move file pointer to the position of the 1st inode (129th byte)
 	// for each inode:
 	//   read it in
 	//   if the inode is in-use
 	//     print the "name" and "size" fields from the inode
 	// end for
+	for(int i = 0; i < FS_MAX_FILES; ++i)
+	{
+		read(fs->fd, &inode, sizeof(inode));
+		if (inode.used == 1)
+		{
+			printf("%16s %6dB\n", inode.name, inode.size * FS_BLOCK_SIZE);
+		}
+	}
 }
 
 // read this block from this file
 	void
 fs_read (struct fs_t *fs, char name[16], int blockNum, char buf[1024])
 {
+	struct inode inode;
+	int blockLocation;
 	// Step 1: locate the inode for this file
 	//   - Move file pointer to the position of the 1st inode (129th byte)
 	//   - Read in a inode
 	//   - If the inode is in use, compare the "name" field with the above file
 	//   - If the file names don't match, repeat
+	lseek(fs->fd, FS_NUM_BLOCKS, SEEK_SET);
+
+	int index;
+	for(int index = 0; index < FS_NUM_BLOCKS; ++index)
+	{
+		read(fs->fd, &inode, sizeof(inode));
+
+		if(inode.used == 1 && !strcmp(inode.name, name))
+		{
+			if(blockNum >= inode.size)
+			{
+				return;
+			}
+			lseek(fs->fd, inode.blockPointers[blockNum] * FS_BLOCK_SIZE, SEEK_SET);
+			read(fs->fd, buf, FS_BLOCK_SIZE);
+			break;
+		}
+	}
 
 	// Step 2: Read in the specified block
 	// Check that blockNum < inode.size, else flag an error
