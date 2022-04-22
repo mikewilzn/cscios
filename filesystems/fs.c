@@ -1,4 +1,7 @@
 #include "fs.h"
+#include <stdlib.h>
+#include <stdio.h>
+#include <fcntl.h>
 
 #define FS_NUM_BLOCKS    128
 #define FS_MAX_FILE_SIZE 8
@@ -37,6 +40,12 @@ void
 fs_close (struct fs_t *fs)
 {
   // this file will act as the "disk" for your file system
+  if (close(fs->fd) < 0)
+  {
+	  printf("Error closing filesystem\n");
+	  exit(1);
+  }
+  printf("Filesystem closed successfully\n");
 }
 
 // create a file with this name and this size
@@ -155,4 +164,10 @@ fs_write (struct fs_t *fs, char name[16], int blockNum, char buf[1024])
 void
 fs_repl ()
 {
+	/* First line: get name of disk */
+	char diskName[16];
+	fgets(diskName, sizeof(diskName), stdin);
+	strtok(diskName, "\n");
+
+	
 }
