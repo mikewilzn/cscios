@@ -39,7 +39,7 @@ struct inode
 fs_open (struct fs_t *fs, char diskName[16])
 {
 	// this file will act as the "disk" for your file system
-	if ((fs->fd = open(diskName, O_RDWR)) < 0)
+	if ((fs->fd = open(diskName, O_RDWR, 0600)) < 0)
 	{
 		printf("Error opening filesystem\n");
 		exit(1);
@@ -103,8 +103,8 @@ fs_create (struct fs_t *fs, char name[16], int size)
 	// - Set the "used" field to 1
 	// - Copy the filename to the "name" field
 	// - Copy the file size (in units of blocks) to the "size" field
-	int index;
-	for (index = 0; index < FS_MAX_FILES; ++index)
+	int index = -1;
+	for (int i = 0; i < FS_MAX_FILES; ++i)
 	{
 		read(fs->fd, &inode, sizeof(inode));
 		
@@ -114,34 +114,33 @@ fs_create (struct fs_t *fs, char name[16], int size)
 			return;
 		}
 		if (inode.used == 0)
+			index = i;
 			break;
+	}	
 
-		if (index >= FS_MAX_FILES)
-		{
-			printf("No free inodes found.\n");
-			return;
-		}
-
-		inode.used = 1;
-		strncpy(inode.name, name, FS_MAX_FILENAME);
-		inode.size = size;
+	if (index < 0)
+	{
+		printf("No free inodes found.\n");
+		return;
 	}
+
+	inode.used = 1;
+	strncpy(inode.name, name, FS_MAX_FILENAME);
+	inode.size = size;
 
 	// Step 3: Allocate data blocks to the file
 	// - Scan the block list that you read in Step 1 for a free block
 	// - Once you find a free block, mark it as in-use (Set it to 1)
 	// - Set the blockPointer[i] field in the inode to this block number.
 	// - repeat until you allocated "size" blocks
-	for (int i = 0; i < size; ++i)
+	int block = 0;
+	for (int i = 0; i < FS_NUM_BLOCKS && block < size; ++i)
 	{
-		for (int j = 0; j < FS_NUM_BLOCKS; ++j)
+		if(buff[i] == 0)
 		{
-			if (buff[i] == 0)
-			{
-				buff[i] = 1;
-				inode.blockPointers[i] = j;
-				break;
-			}
+			buff[i] = 1;
+			inode.blockPointers[block] = i;
+			block++;
 		}
 	}
 
@@ -169,15 +168,16 @@ fs_delete (struct fs_t *fs, char name[16])
 	char buff[FS_NUM_BLOCKS];
 
 	int index;
-	for(index = 0; index < FS_NUM_BLOCKS; ++index)
+	for(int i = 0; i < FS_NUM_BLOCKS; ++i)
 	{
 		read(fs->fd, &inode, sizeof(inode));
 
 		if (inode.used == 1 && !strcmp(inode.name, name))
+			index = i;
 			break;
 	}
 
-	if (index >= FS_NUM_BLOCKS)
+	if (index < 0)
 	{
 		printf("File not found.\n");
 		return;
