@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <fcntl.h>
+#include <string.h>
 
 #define FS_NUM_BLOCKS    128
 #define FS_MAX_FILE_SIZE 8
