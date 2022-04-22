@@ -231,7 +231,6 @@ fs_ls (struct fs_t *fs)
 fs_read (struct fs_t *fs, char name[16], int blockNum, char buf[1024])
 {
 	struct inode inode;
-	int blockLocation;
 	// Step 1: locate the inode for this file
 	//   - Move file pointer to the position of the 1st inode (129th byte)
 	//   - Read in a inode
@@ -239,8 +238,7 @@ fs_read (struct fs_t *fs, char name[16], int blockNum, char buf[1024])
 	//   - If the file names don't match, repeat
 	lseek(fs->fd, FS_NUM_BLOCKS, SEEK_SET);
 
-	int index;
-	for(int index = 0; index < FS_NUM_BLOCKS; ++index)
+	for(int i = 0; i < FS_NUM_BLOCKS; ++i)
 	{
 		read(fs->fd, &inode, sizeof(inode));
 
@@ -252,7 +250,7 @@ fs_read (struct fs_t *fs, char name[16], int blockNum, char buf[1024])
 			}
 			lseek(fs->fd, inode.blockPointers[blockNum] * FS_BLOCK_SIZE, SEEK_SET);
 			read(fs->fd, buf, FS_BLOCK_SIZE);
-			break;
+			return;
 		}
 	}
 
@@ -262,16 +260,34 @@ fs_read (struct fs_t *fs, char name[16], int blockNum, char buf[1024])
 	// move the file pointer to the block location
 	// Read in the block! => Read in 1024 bytes from this location into the buffer
 	// "buf"
+	printf("File not found.\n");
 }
 
 // write this block to this file
 	void
 fs_write (struct fs_t *fs, char name[16], int blockNum, char buf[1024])
 {
+	struct inode inode;
 
 	// Step 1: locate the inode for this file
 	// Move file pointer to the position of the 1st inode (129th byte)
+	lseek(fs->fd, FS_NUM_BLOCKS, SEEK_SET);
 	// Read in a inode
+	for(int i = 0; i < FS_NUM_BLOCKS; ++i)
+	{
+		read(fs->fd, &inode, sizeof(inode));
+		if(inode.used && !strcmp(inode.name, name))
+		{
+			if(blockNum >= inode.size)
+			{
+				return;
+			}
+
+			lseek(fs->fd, inode.blockPointers[blockNum] * FS_BLOCK_SIZE, SEEK_SET);
+			write(fs->fd, buf, FS_BLOCK_SIZE);
+			return;
+		}
+	}
 	// If the inode is in use, compare the "name" field with the above file
 	// If the file names don't match, repeat
 
@@ -280,6 +296,7 @@ fs_write (struct fs_t *fs, char name[16], int blockNum, char buf[1024])
 	// Get the disk address of the specified block
 	// move the file pointer to the block location
 	// Write the block! => Write 1024 bytes from the buffer "buf" to this location
+	printf("File not found.\n");
 }
 
 // REPL entry point
