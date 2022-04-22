@@ -9,6 +9,7 @@
 #define FS_MAX_FILENAME  16
 #define FS_MAX_FILES     16
 #define FS_BLOCK_SIZE    1024
+#define FS_INODE_SIZE	 56
 
 struct fs_t
 {
@@ -140,7 +141,7 @@ fs_create (struct fs_t *fs, char name[16], int size)
 	// - Write out the 128 byte free block list
 	write(fs->fd, buff, FS_NUM_BLOCKS);
 	// - Move the file pointer to the position on disk where this inode was stored
-	lseek(fs->fd, FS_NUM_BLOCKS + (index * sizeof(inode)), SEEK_SET);
+	lseek(fs->fd, FS_NUM_BLOCKS + (index * FS_INODE_SIZE), SEEK_SET);
 	// - Write out the inode
 	write(fs->fd, &inode, sizeof(inode));
 }
@@ -198,7 +199,7 @@ fs_delete (struct fs_t *fs, char name[16])
 	// Write out the 128 byte free block list
 	write(fs->fd, buff, FS_NUM_BLOCKS);
 	// Move the file pointer to the position on disk where this inode was stored
-	lseek(fs->fd, FS_NUM_BLOCKS + (index * sizeof(inode)), SEEK_SET);
+	lseek(fs->fd, FS_NUM_BLOCKS + (index * FS_INODE_SIZE), SEEK_SET);
 	// Write out the inode
 	write(fs->fd, &inode, sizeof(inode));
 }
