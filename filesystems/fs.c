@@ -160,7 +160,7 @@ fs_delete (struct fs_t *fs, char name[16])
 	int index;
 	for(index = 0; index < FS_NUM_BLOCKS; ++index)
 	{
-		read(fs->fd, &node, sizeof(node));
+		read(fs->fd, &inode, sizeof(inode));
 
 		if (inode.used == 1 && !strcmp(inode.name, name))
 			break;
