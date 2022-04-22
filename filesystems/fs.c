@@ -9,7 +9,6 @@
 #define FS_MAX_FILENAME  16
 #define FS_MAX_FILES     16
 #define FS_BLOCK_SIZE    1024
-#define FS_INODE_SIZE	 56
 
 struct fs_t
 {
@@ -141,7 +140,7 @@ fs_create (struct fs_t *fs, char name[16], int size)
 	// - Write out the 128 byte free block list
 	write(fs->fd, buff, FS_NUM_BLOCKS);
 	// - Move the file pointer to the position on disk where this inode was stored
-	lseek(fs->fd, FS_NUM_BLOCKS + (index * FS_INODE_SIZE), SEEK_SET);
+	lseek(fs->fd, FS_NUM_BLOCKS + (index * sizeof(inode)), SEEK_SET);
 	// - Write out the inode
 	write(fs->fd, &inode, sizeof(inode));
 }
@@ -153,7 +152,25 @@ fs_delete (struct fs_t *fs, char name[16])
 
 	// Step 1: Locate the inode for this file
 	//   - Move the file pointer to the 1st inode (129th byte)
+	lseek(fs->fd, FS_NUM_BLOCKS, SEEK_SET);
 	//   - Read in a inode
+	struct inode inode;
+	char buff[FS_NUM_BLOCKS];
+
+	int index;
+	for(index = 0; index < FS_NUM_BLOCKS; ++index)
+	{
+		read(fs->fd, &node, sizeof(node));
+
+		if (inode.used == 1 && !strcmp(inode.name, name))
+			break;
+	}
+
+	if (index >= FS_NUM_BLOCKS)
+	{
+		printf("File not found.\n");
+		return;
+	}
 	//   - If the iinode is free, repeat above step.
 	//   - If the iinode is in use, check if the "name" field in the
 	//     inode matches the file we want to delete. IF not, read the next
@@ -163,15 +180,27 @@ fs_delete (struct fs_t *fs, char name[16])
 	// Read in the 128 byte free block list (move file pointer to start
 	//   of the disk and read in 128 bytes)
 	// Free each block listed in the blockPointer fields
+	lseek(fs->fd, 0, SEEK_SET);
+	read(fs->fd, buff, FS_NUM_BLOCKS);
+
+	for(int i = 0; i < inode.size; ++i)
+	{
+		buff[inode.blockPointers[i]] = 0;
+	}
 
 	// Step 3: mark inode as free
 	// Set the "used" field to 0.
+	inode.used = 0;
 
 	// Step 4: Write out the inode and free block list to disk
 	// Move the file pointer to the start of the file
+	lseek(fs->fd, 0, SEEK_SET);
 	// Write out the 128 byte free block list
+	write(fs->fd, buff, FS_NUM_BLOCKS);
 	// Move the file pointer to the position on disk where this inode was stored
+	lseek(fs->fd, FS_NUM_BLOCKS + (index * sizeof(inode)), SEEK_SET);
 	// Write out the inode
+	write(fs->fd, &inode, sizeof(inode));
 }
 
 // List names of all files on disk
