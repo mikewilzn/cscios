@@ -1,5 +1,15 @@
+/*
+ * Filename	: fs.c
+ * Author	: Michael Wilson
+ * Course	: CSCI 380-01
+ * Assignment	: Filesystems
+ * Description	: Implement a file system that can create, delete, read, and write files
+ *
+ */
+
 #include "fs.h"
 #include <stdlib.h>
+#include <unistd.h>
 #include <stdio.h>
 #include <fcntl.h>
 #include <string.h>
@@ -304,10 +314,5 @@ fs_write (struct fs_t *fs, char name[16], int blockNum, char buf[1024])
 	void
 fs_repl ()
 {
-	/* First line: get name of disk */
-	char diskName[16];
-	fgets(diskName, sizeof(diskName), stdin);
-	strtok(diskName, "\n");
-
 
 }
