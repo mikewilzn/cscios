@@ -9,13 +9,12 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-
 #include <pthread.h>
 
 /******* Global Variables *******/
-int* A;
-int N;
-int p;
+int* g_A; // Array of integers
+int g_N; // Number of elements in array g_A
+int g_p; // Number of threads to spawn for parallel computation
 
 /******* Function prototypes *******/
 void*
@@ -27,54 +26,66 @@ parallelSum();
 long
 serialSum();
 
+/******* Main *******/
+
 int
 main (int argc, char* argv[])
 {
 	printf("p ==> ");
-	scanf("%d", &p);
+	scanf("%d", &g_p);
 	printf("N ==> ");
-	scanf("%d", &N);
+	scanf("%d", &g_N);
 
-	A = malloc(N * sizeof(int));
+	g_A = malloc(g_N * sizeof(int));
 
-	for(int i = 0; i < N; i++)
+	for(int i = 0; i < g_N; i++)
 	{
-		A[i] = rand() % 5; // mod 5 gives range [0,4]
+		g_A[i] = rand() % 5; // mod 5 gives range [0,4]
 	}
 
 	printf("Parallel sum:  %ld\n", parallelSum());
 	printf("Serial sum:    %ld\n", serialSum());
 
-	free(A);
+	free(g_A);
 }
 
+/*
+ * thread()
+ * @params - id - Thread id
+ * @return - Sum of integers in the thread's block of elements
+ */
 void*
 thread (void* id)
 {
 	long sum = 0;
-	long block = N / p;
+	long block = g_N / g_p;
 	long start = block * (long)id;
 	long end = start + block;
 
 	for(long i = start; i < end; i++)
 	{
-		sum += A[i];;
+		sum += g_A[i];;
 	}
 
 	return (void*)sum;
 }
 
+/*
+ * parallelSum() = Compute sum of ints in array g_A using parallel threads
+ * @params - none
+ * @return - sum of values in array
+ */
 long
 parallelSum()
 {
-	pthread_t* threads = malloc(p * sizeof(pthread_t));
+	pthread_t* threads = malloc(g_p * sizeof(pthread_t));
 
-	for(long id = 0; id < p; ++id)
+	for(long id = 0; id < g_p; ++id)
 	{
 		pthread_create(&threads[id], NULL, thread, (void*)id);
 	}
 	long sum = 0;
-	for(long id = 0; id < p; ++id)
+	for(long id = 0; id < g_p; ++id)
 	{
 		void* returnVal;
 		pthread_join(threads[id], &returnVal);
@@ -84,13 +95,18 @@ parallelSum()
 	return sum;
 }
 
+/*
+ * serialSum() - Compute sum of ints in array g_A using only the main thread
+ * @params - none
+ * @return - sum of values in array
+ */
 long
 serialSum()
 {
 	long sum = 0;
-	for(int i = 0; i < N; ++i)
+	for(int i = 0; i < g_N; ++i)
 	{
-		sum += A[i];
+		sum += g_A[i];
 	}
 	return sum;
 }
