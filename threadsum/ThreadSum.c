@@ -21,6 +21,12 @@ int p;
 void*
 thread (void* id);
 
+long
+parallelSum();
+
+long
+serialSum();
+
 int
 main (int argc, char* argv[])
 {
@@ -36,21 +42,55 @@ main (int argc, char* argv[])
 		A[i] = rand() % 5; // mod 5 gives range [0,4]
 	}
 
-	pthread_t* threads = malloc(p * sizeof(pthread_t));
+	printf("Parallel sum:  %ld\n", parallelSum());
+	printf("Serial sum:    %ld\n", serialSum());
+
+	free(A);
 }
 
 void*
 thread (void* id)
 {
 	long sum = 0;
-	int block = N / p;
-	int start = block * (int)id;
-	int end = start + block;
+	long block = N / p;
+	long start = block * (long)id;
+	long end = start + block;
 
-	for(int i = start; i < end; i++)
+	for(long i = start; i < end; i++)
 	{
 		sum += A[i];;
 	}
 
 	return (void*)sum;
+}
+
+long
+parallelSum()
+{
+	pthread_t* threads = malloc(p * sizeof(pthread_t));
+
+	for(long id = 0; id < p; ++id)
+	{
+		pthread_create(&threads[id], NULL, thread, (void*)id);
+	}
+	long sum = 0;
+	for(long id = 0; id < p; ++id)
+	{
+		void* returnVal;
+		pthread_join(threads[id], &returnVal);
+		sum += (long)returnVal;
+	}
+	free(threads);
+	return sum;
+}
+
+long
+serialSum()
+{
+	long sum = 0;
+	for(int i = 0; i < N; ++i)
+	{
+		sum += A[i];
+	}
+	return sum;
 }
