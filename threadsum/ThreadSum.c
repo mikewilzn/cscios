@@ -3,91 +3,54 @@
  * Author	: Mike Wilson
  * Course	: CSCI 380-01
  * Assignment	: Threads
- * Description	: Write a Pthreads program that computes a parallel sum of
- * 		  an array A of N random integers in the range [0, 4]
+ * Description	: Write a Pthreads program that computes a parallel
+ * sum of an array A of N random integers in the range [0, 4]
  */
 
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <unistd.h>
-#include <pthread.h> 
+#include <pthread.h>
 
-//**
+/******* Global Variables *******/
+int* A;
+int N;
+int p;
 
-const long MAX_THREADS = 16;
-
-// Accessible to all threads
-long threadCount;  
-
-void
-printUsage (const char* progName);
-
+/******* Function prototypes *******/
 void*
-sayHello (void* threadId);
-
-//**
+thread (void* id);
 
 int
-main (int argc, char* argv[]) 
+main (int argc, char* argv[])
 {
-  if (argc != 2)
-  {
-    printUsage (argv[0]);
-    exit (EXIT_FAILURE);
-  }
+	printf("p ==> ");
+	scanf("%d", &p);
+	printf("N ==> ");
+	scanf("%d", &N);
 
-  threadCount = atol (argv[1]);
-  if (threadCount <= 0 || threadCount > MAX_THREADS)
-  {
-    printUsage (argv[0]);
-    exit (EXIT_FAILURE);
-  }
+	A = malloc(N * sizeof(int));
 
-  pthread_t* threads = malloc (threadCount * sizeof (pthread_t)); 
-  
-  for (long threadId = 0; threadId < threadCount; ++threadId)  
-  {
-    // Second arg is attributes object, which we will not use. 
-    pthread_create (&threads[threadId], NULL,
-		    sayHello, (void *) threadId);
-  }
+	for(int i = 0; i < N; i++)
+	{
+		A[i] = rand() % 5; // mod 5 gives range [0,4]
+	}
 
-  printf ("Hello from main thread\n");
-  
-  for (long threadId = 0; threadId < threadCount; ++threadId) 
-  {
-    void* returnVal;
-    pthread_join (threads[threadId], &returnVal);
-    printf ("Status = %ld\n", (long) returnVal);
-  }
-
-  free (threads);
-
-  // pthread_exit ensures all threads have terminated before
-  //   the main thread terminates
-  pthread_exit (EXIT_SUCCESS);
+	pthread_t* threads = malloc(p * sizeof(pthread_t));
 }
 
-//**
-
 void*
-sayHello (void* threadId) 
+thread (void* id)
 {
-  long myId = (long) threadId;
-  
-  sleep (1);
-  printf ("Hello from thread %ld of %ld\n", myId, threadCount);
-  
-  void* retVal = (void *) 311;
-  return retVal;
-} 
+	long sum = 0;
+	int block = N / p;
+	int start = block * (int)id;
+	int end = start + block;
 
-//**
+	for(int i = start; i < end; i++)
+	{
+		sum += A[i];;
+	}
 
-void
-printUsage (const char* progName) 
-{
-  fprintf (stderr, "Usage: %s <number of threads>\n", progName);
-  fprintf (stderr, "0 < number of threads <= %ld\n", MAX_THREADS);
+	return (void*)sum;
 }
