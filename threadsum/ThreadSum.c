@@ -80,17 +80,16 @@ parallelSum()
 {
 	pthread_t* threads = malloc(g_p * sizeof(pthread_t));
 
+	long sum = 0;
+
 	for(long id = 0; id < g_p; ++id)
 	{
 		pthread_create(&threads[id], NULL, thread, (void*)id);
-	}
-	long sum = 0;
-	for(long id = 0; id < g_p; ++id)
-	{
 		void* returnVal;
 		pthread_join(threads[id], &returnVal);
 		sum += (long)returnVal;
 	}
+
 	free(threads);
 	return sum;
 }
