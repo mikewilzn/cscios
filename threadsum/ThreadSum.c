@@ -38,7 +38,7 @@ main (int argc, char* argv[])
 
 	g_A = malloc(g_N * sizeof(int));
 
-	for(int i = 0; i < g_N; i++)
+	for(int i = 0; i < g_N; ++i)
 	{
 		g_A[i] = rand() % 5; // mod 5 gives range [0,4]
 	}
@@ -50,7 +50,7 @@ main (int argc, char* argv[])
 }
 
 /*
- * thread()
+ * thread() - Compute the sum of all integers in a given block of elements
  * @params - id - Thread id
  * @return - Sum of integers in the thread's block of elements
  */
@@ -62,16 +62,16 @@ thread (void* id)
 	long start = block * (long)id;
 	long end = start + block;
 
-	for(long i = start; i < end; i++)
+	for(long i = start; i < end; ++i)
 	{
-		sum += g_A[i];;
+		sum += g_A[i];
 	}
 
 	return (void*)sum;
 }
 
 /*
- * parallelSum() = Compute sum of ints in array g_A using parallel threads
+ * parallelSum() - Compute sum of ints in array g_A using parallel threads
  * @params - none
  * @return - sum of values in array
  */
